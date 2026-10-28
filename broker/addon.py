@@ -14,8 +14,7 @@ def log(event, **fields):
 
 class Broker:
     def __init__(self):
-        with open(os.environ["DEV_CONTAINER_RULES"]) as f:
-            self.rules = Rules.from_json(json.load(f), os.environ)
+        self.rules = Rules.from_json(json.loads(os.environ["DEV_CONTAINER_RULES"]), os.environ)
         log(
             "ready",
             policy=self.rules.policy,

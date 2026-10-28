@@ -30,15 +30,20 @@ describe('generate', () => {
     const compose = readFileSync(composeFile, 'utf8')
     expect(compose).not.toContain('ghp_real')
     expect(compose).not.toContain('hunter2')
-    const placeholder: string = parse(compose).services.agent.environment.GH_TOKEN
+    const { services } = parse(compose)
+    const placeholder: string = services.agent.environment.GH_TOKEN
     expect(placeholder).toMatch(/^dc-GH_TOKEN-[0-9a-f]{16}$/)
-    expect(JSON.parse(readFileSync(join(dir, 'rules.json'), 'utf8')).secrets[0].placeholder).toBe(placeholder)
+    expect(JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets[0].placeholder).toBe(placeholder)
   })
 
-  it('regenerates placeholders but keeps the control token', () => {
+  it('regenerates placeholders in both the broker and the cage, but keeps the control token', () => {
     const root = project()
     const config = resolveConfig({ secrets: [presets.npm()], services: { agent: { image: 'alpine' } } })
-    const read = () => JSON.parse(readFileSync(join(root, '.dev-container/rules.json'), 'utf8')).secrets[0].placeholder
+    const read = () => {
+      const { services } = parse(readFileSync(join(root, '.dev-container/compose.yml'), 'utf8'))
+      expect(services.broker.environment.DEV_CONTAINER_RULES).toContain(services.agent.environment.NPM_TOKEN)
+      return services.agent.environment.NPM_TOKEN
+    }
     const token = () => readFileSync(join(root, '.dev-container/control-token'), 'utf8')
 
     generate({ config, root, env: { NPM_TOKEN: 'npm_real' } })

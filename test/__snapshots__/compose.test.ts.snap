@@ -13,9 +13,8 @@ services:
       - path: /work/my-project/.dev-container/env/broker.env
         required: true
     environment:
-      DEV_CONTAINER_RULES: /etc/dev-container/rules.json
+      DEV_CONTAINER_RULES: '{"policy":"allowlist","allow":["registry.npmjs.org","host.docker.internal:7357"],"secrets":[{"name":"GH_TOKEN","placeholder":"dc-GH_TOKEN-0000000000000000","hosts":["api.github.com","uploads.github.com","github.com","codeload.github.com"]},{"name":"ACME_KEY","placeholder":"dc-ACME_KEY-1111111111111111","hosts":["*.acme.dev"]}]}'
     volumes:
-      - /work/my-project/.dev-container/rules.json:/etc/dev-container/rules.json:ro
       - broker-ca:/home/mitmproxy/.mitmproxy
       - ca:/etc/dev-container/ca
     extra_hosts:

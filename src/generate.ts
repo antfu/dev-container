@@ -22,7 +22,7 @@ export interface GenerateOptions {
 }
 
 /**
- * Writes `.dev-container/`: the compose file, broker rules and env files with
+ * Writes `.dev-container/`: the compose file and env files with
  * resolved secrets. Placeholders are regenerated on every run.
  */
 export function generate({ config, root, env = process.env }: GenerateOptions): Generated {
@@ -44,7 +44,6 @@ export function generate({ config, root, env = process.env }: GenerateOptions): 
     writeFileSync(envFilePath(dir, name), formatEnvFile(values), { mode: 0o600 })
   for (const path of stack.persistDirs)
     mkdirSync(path, { recursive: true })
-  writeFileSync(join(dir, 'rules.json'), `${JSON.stringify(stack.rules, null, 2)}\n`)
   if (stack.tailscaleServe)
     writeFileSync(join(dir, 'tailscale-serve.json'), `${JSON.stringify(stack.tailscaleServe, null, 2)}\n`)
   const composeFile = join(dir, 'compose.yml')

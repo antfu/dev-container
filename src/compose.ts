@@ -7,7 +7,6 @@ const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
 const PROXY = 'http://broker:8080'
 const CA_DIR = '/etc/dev-container/ca'
 const CA_CERT = `${CA_DIR}/mitmproxy-ca-cert.pem`
-const RULES_PATH = '/etc/dev-container/rules.json'
 const CONTROL_HOST = 'host.docker.internal'
 
 interface ComposeService {
@@ -83,14 +82,27 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const usesControl = Object.values(config.services).some(s => s.control)
   const persistDirs: string[] = []
 
+  const allow = config.egress.policy === 'allowlist' ? [...config.egress.allow] : []
+  if (usesControl)
+    allow.push(`${CONTROL_HOST}:${config.control.port}`)
+  const rules: BrokerRules = {
+    policy: config.egress.policy,
+    allow,
+    secrets: config.secrets.map(secret => ({
+      name: secret.env,
+      placeholder: placeholderOf(ctx, secret.env),
+      hosts: secret.hosts,
+    })),
+  }
+
   const services: Record<string, ComposeService> = {
     broker: {
       build: { context: join(ctx.assets, 'broker') },
       networks: ['caged', 'egress'],
       env_file: [{ path: envFilePath(ctx.dir, 'broker'), required: true }],
-      environment: { DEV_CONTAINER_RULES: RULES_PATH },
+      // Passed inline rather than as a file so new placeholders make compose recreate the broker.
+      environment: { DEV_CONTAINER_RULES: escapeCompose(JSON.stringify(rules)) },
       volumes: [
-        `${join(ctx.dir, 'rules.json')}:${RULES_PATH}:ro`,
         'broker-ca:/home/mitmproxy/.mitmproxy',
         `ca:${CA_DIR}`,
       ],
@@ -150,10 +162,6 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
     }
   }
 
-  const allow = config.egress.policy === 'allowlist' ? [...config.egress.allow] : []
-  if (usesControl)
-    allow.push(`${CONTROL_HOST}:${config.control.port}`)
-
   return {
     compose: {
       name: config.name ?? slugify(ctx.root.split(/[\\/]/).pop() || 'dev-container').toLowerCase(),
@@ -162,15 +170,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       networks: { caged: { internal: true }, egress: {} },
       volumes: Object.fromEntries(['ca', 'broker-ca', ...namedVolumes(config)].map(name => [name, {}])),
     },
-    rules: {
-      policy: config.egress.policy,
-      allow,
-      secrets: config.secrets.map(secret => ({
-        name: secret.env,
-        placeholder: placeholderOf(ctx, secret.env),
-        hosts: secret.hosts,
-      })),
-    },
+    rules,
     tailscaleServe,
     persistDirs,
   }
