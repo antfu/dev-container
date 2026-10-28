@@ -4,7 +4,7 @@ This is a warning, not an error. The `github` or `npm` builtin is detected autom
 
 ## Fix
 
-Set the token in `.env.secret` to enable it. `dev-container setup` fills `GH_TOKEN` from `gh auth token` when it can. If you don't need it, silence the warning:
+Set the token in `.env.secret` to enable it. If you don't need it, silence the warning:
 
 ```ts
 export default defineConfig({

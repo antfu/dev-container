@@ -9,7 +9,7 @@ import { report, reportError, wantsJson } from './report'
 const HELP = `Usage: dev-container <command>
 
 Commands:
-  setup [--yes]            Create the config, .env, .env.secret (GH_TOKEN from \`gh auth token\`) and .gitignore entries
+  setup [--yes]            Create the config, .env, .env.secret and .gitignore entries
   generate                 Write .dev-container/ (compose file, broker rules, resolved env files)
   up [compose up flags]    Generate, then \`docker compose up -d --build --remove-orphans\`
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
@@ -91,8 +91,7 @@ async function runSetup(args: string[], json: boolean): Promise<number> {
     ports = portsAnswer.split(',').map(port => port.trim()).filter(Boolean)
   }
 
-  const { changes, warnings } = setup({ root: process.cwd(), image, ports })
-  report(warnings, 'warning', json)
+  const { changes } = setup({ root: process.cwd(), image, ports })
   process.stdout.write(changes.length ? changes.map(change => `✔ ${change}\n`).join('') : 'Already set up; nothing changed.\n')
   process.stdout.write('\nNext: review dev-container.config.ts, then run `npx @antfu/dev-container up`.\n')
   return 0

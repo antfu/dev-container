@@ -45,10 +45,6 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
       why: (p: { path: string }) => `envFile ${p.path} does not exist.`,
       fix: 'Create it (`npx @antfu/dev-container setup` writes .env and .env.secret) or remove it from `envFile`.',
     },
-    DEV_CONTAINER_S2006: {
-      why: (p: { reason: string }) => `Could not prefill GH_TOKEN: the gh CLI ${p.reason}.`,
-      fix: 'Run `gh auth login` and then `npx @antfu/dev-container setup` again, or paste a token into GH_TOKEN in .env.secret.',
-    },
     DEV_CONTAINER_N3001: {
       why: (p: { port: number, first: string, second: string }) => `Port ${p.port} is published by both ${p.first} and ${p.second}.`,
       fix: 'Publish each host port from one service only; change one of the `ports` entries.',
