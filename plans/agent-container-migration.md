@@ -21,7 +21,7 @@ The file references below are to agent-container at `f35c7d0`.
 
 - **Remove `containers/broker/`** (Dockerfile, entrypoint.sh, inject.py) and the `broker` service in `compose.yml:299-326`.
 - **Map the GitHub token** with `builtins: { github: { from: { env: 'BROKER_SECRET_GITHUB_TOKEN' } } }`. That keeps the existing `config/secrets.env` key. Pass the files as `envFile: ['config/config.env', 'config/secrets.env']`. Turn off the npm builtin with `npm: false` unless npm publishing from the workbench is wanted again.
-- **`make setup`** (the interactive wizard in `scripts/setup.ts`) can keep collecting workbench-specific values. New users can start from `npx dev-container setup`, which prefills `GH_TOKEN` from `gh auth token`.
+- **`make setup`** (the interactive wizard in `scripts/setup.ts`) can keep collecting workbench-specific values. New users can start from `npx @antfu/dev-container setup`, which prefills `GH_TOKEN` from `gh auth token`.
 - **Delete the dummy-token plumbing**, which dev-container now provides as `GH_TOKEN`/`GITHUB_TOKEN` placeholders plus a `GIT_CONFIG_*` credential helper:
   - `GH_TOKEN`/`GITHUB_TOKEN` in `compose.yml:110-111`
   - the git credential helpers in `containers/workbench/entrypoint.sh:65-68`

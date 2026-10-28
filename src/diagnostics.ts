@@ -5,14 +5,14 @@ export const DOCS_BASE = 'https://github.com/antfu/dev-container/blob/main/docs/
 /**
  * Every user-facing failure. Codes are stable: `C` config, `S` secrets,
  * `N` network/ports/volumes, `D` docker and the control API. Broker codes
- * (`B`) live in `broker/rules.py` and share the docs directory.
+ * (`B`) live in `services/broker/rules.py` and share the docs directory.
  */
 export const diagnostics = /* #__PURE__ */ defineDiagnostics({
   docsBase: code => `${DOCS_BASE}/${code}.md`,
   codes: {
     DEV_CONTAINER_C1001: {
       why: (p: { cwd: string }) => `No dev-container.config.* found in ${p.cwd} or any parent directory.`,
-      fix: 'Run `npx dev-container setup` to create one, or run the command from the project directory.',
+      fix: 'Run `npx @antfu/dev-container setup` to create one, or run the command from the project directory.',
     },
     DEV_CONTAINER_C1002: {
       why: (p: { path: string, message: string }) => `Invalid config at \`${p.path || '<root>'}\`: ${p.message}.`,
@@ -43,11 +43,11 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
     },
     DEV_CONTAINER_S2005: {
       why: (p: { path: string }) => `envFile ${p.path} does not exist.`,
-      fix: 'Create it (`npx dev-container setup` writes .env and .env.secret) or remove it from `envFile`.',
+      fix: 'Create it (`npx @antfu/dev-container setup` writes .env and .env.secret) or remove it from `envFile`.',
     },
     DEV_CONTAINER_S2006: {
       why: (p: { reason: string }) => `Could not prefill GH_TOKEN: the gh CLI ${p.reason}.`,
-      fix: 'Run `gh auth login` and then `npx dev-container setup` again, or paste a token into GH_TOKEN in .env.secret.',
+      fix: 'Run `gh auth login` and then `npx @antfu/dev-container setup` again, or paste a token into GH_TOKEN in .env.secret.',
     },
     DEV_CONTAINER_N3001: {
       why: (p: { port: number, first: string, second: string }) => `Port ${p.port} is published by both ${p.first} and ${p.second}.`,

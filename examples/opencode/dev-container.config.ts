@@ -1,4 +1,4 @@
-import { defineConfig } from 'dev-container'
+import { defineConfig } from '@antfu/dev-container'
 
 export default defineConfig({
   envFile: ['.env', '.env.secret'],

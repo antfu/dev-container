@@ -94,7 +94,7 @@ async function runSetup(args: string[], json: boolean): Promise<number> {
   const { changes, warnings } = setup({ root: process.cwd(), image, ports })
   report(warnings, 'warning', json)
   process.stdout.write(changes.length ? changes.map(change => `✔ ${change}\n`).join('') : 'Already set up; nothing changed.\n')
-  process.stdout.write('\nNext: review dev-container.config.ts, then run `npx dev-container up`.\n')
+  process.stdout.write('\nNext: review dev-container.config.ts, then run `npx @antfu/dev-container up`.\n')
   return 0
 }
 

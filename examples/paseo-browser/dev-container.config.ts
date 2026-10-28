@@ -1,4 +1,4 @@
-import { defineConfig } from 'dev-container'
+import { defineConfig } from '@antfu/dev-container'
 
 /**
  * Paseo next to a Chromium desktop you sign in to by hand. Agents drive that

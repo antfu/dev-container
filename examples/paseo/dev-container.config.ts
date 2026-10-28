@@ -1,4 +1,4 @@
-import { defineConfig } from 'dev-container'
+import { defineConfig } from '@antfu/dev-container'
 
 /** Paseo's daemon runs every agent inside this one caged container. */
 export default defineConfig({

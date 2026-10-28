@@ -8,7 +8,7 @@ Log in and run setup again; it only fills missing values:
 
 ```sh
 gh auth login
-npx dev-container setup
+npx @antfu/dev-container setup
 ```
 
 Or paste a token (fine-grained or classic with `repo` scope) into `GH_TOKEN=` in `.env.secret`.

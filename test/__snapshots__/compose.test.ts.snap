@@ -5,7 +5,7 @@ exports[`buildStack > generates a caged stack with broker, relay and tailscale 1
 services:
   broker:
     build:
-      context: /pkg/broker
+      context: /pkg/services/broker
     networks:
       - caged
       - egress
@@ -76,7 +76,7 @@ services:
     mem_limit: 4g
   relay:
     build:
-      context: /pkg/relay
+      context: /pkg/services/relay
     command:
       - agent:6767
       - agent:5170-5172

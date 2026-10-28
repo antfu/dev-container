@@ -7,7 +7,7 @@
 Create one. `setup` also writes `.env`, `.env.secret` and the `.gitignore` entries:
 
 ```sh
-npx dev-container setup
+npx @antfu/dev-container setup
 ```
 
 If a config already exists, run the command from its directory or a subdirectory.

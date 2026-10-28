@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { diagnostics, DOCS_BASE } from '../src/diagnostics'
 
-const brokerSource = readFileSync(new URL('../broker/rules.py', import.meta.url), 'utf8')
+const brokerSource = readFileSync(new URL('../services/broker/rules.py', import.meta.url), 'utf8')
 const brokerCodes = [...new Set(brokerSource.match(/DEV_CONTAINER_B\d{4}/g))]
 const pages = readdirSync(new URL('../docs/errors', import.meta.url)).filter(f => f.startsWith('DEV_CONTAINER_')).map(f => f.replace(/\.md$/, ''))
 

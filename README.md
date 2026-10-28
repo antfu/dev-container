@@ -1,4 +1,4 @@
-# dev-container
+# @antfu/dev-container
 
 [![npm version][npm-version-src]][npm-version-href]
 [![License][license-src]][license-href]
@@ -17,7 +17,7 @@ It has no opinion about what runs inside: [Paseo](https://github.com/getpaseo/pa
 ## Quick start
 
 ```sh
-npx dev-container setup
+npx @antfu/dev-container setup
 ```
 
 `setup` asks for an image and the ports to publish, then writes:
@@ -30,8 +30,8 @@ npx dev-container setup
 Run it again any time; it only fills gaps and never overwrites existing values. Without a terminal, or when an AI agent runs it, it takes the defaults (`node:24`, no ports) and doesn't prompt; `--yes` does the same.
 
 ```sh
-npx dev-container up
-npx dev-container compose exec agent bash
+npx @antfu/dev-container up
+npx @antfu/dev-container compose exec agent bash
 # inside: $GH_TOKEN is a placeholder, yet `git push` and `gh` work
 ```
 
@@ -227,7 +227,7 @@ To mount the API in your own server instead, use `createControlApp({ dir, token 
 
 ## Using it with an orchestrator
 
-Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, run `npx dev-container setup` first: it keeps the example's config and creates the env files it reads.
+Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, run `npx @antfu/dev-container setup` first: it keeps the example's config and creates the env files it reads.
 
 - [`paseo`](./examples/paseo): the Paseo daemon with Claude Code, Codex and opencode, served on the tailnet.
 - [`paseo-browser`](./examples/paseo-browser): Paseo plus a caged Chromium desktop you sign in to by hand, driven by agents over CDP. It also needs `BROWSER_PASSWORD` in `.env.secret`.
@@ -253,7 +253,7 @@ Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `
 
 <!-- Badges -->
 
-[npm-version-src]: https://img.shields.io/npm/v/dev-container?style=flat&colorA=080f12&colorB=1fa669
-[npm-version-href]: https://npmx.dev/package/dev-container
+[npm-version-src]: https://img.shields.io/npm/v/@antfu/dev-container?style=flat&colorA=080f12&colorB=1fa669
+[npm-version-href]: https://npmx.dev/package/@antfu/dev-container
 [license-src]: https://img.shields.io/github/license/antfu/dev-container.svg?style=flat&colorA=080f12&colorB=1fa669
 [license-href]: https://github.com/antfu/dev-container/blob/main/LICENSE.md
