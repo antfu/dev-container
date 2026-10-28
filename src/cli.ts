@@ -2,15 +2,18 @@
 import { join } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
+import { cancel, intro, isCancel, text } from '@clack/prompts'
 import { loadConfig } from './config'
 import { serveControl } from './control'
 import { compose, up } from './docker'
 import { generate, readControlToken } from './generate'
 import { report, reportError, wantsJson } from './report'
+import { setup } from './setup'
 
 const HELP = `Usage: dev-container <command>
 
 Commands:
+  setup [--yes]            Create the config, .env, .env.secret (GH_TOKEN from \`gh auth token\`) and .gitignore entries
   generate                 Write .dev-container/ (compose file, broker rules, resolved env files)
   up [compose up flags]    Generate, then \`docker compose up -d --build --remove-orphans\`
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
@@ -27,6 +30,9 @@ async function main(argv: string[], json: boolean): Promise<number> {
     process.stdout.write(HELP)
     return command ? 0 : 1
   }
+
+  if (command === 'setup')
+    return runSetup(rest, json)
 
   const { config, root } = await loadConfig()
   const dir = join(root, '.dev-container')
@@ -60,6 +66,47 @@ async function main(argv: string[], json: boolean): Promise<number> {
 const args = process.argv.slice(2)
 const end = args[0] === 'compose' ? 1 : args.length
 const json = wantsJson(args.slice(0, end).includes('--json'))
+const PORTS = /^\s*(?:\d+(?:-\d+)?\s*(?:,\s*|$))*$/
+
+async function runSetup(args: string[], json: boolean): Promise<number> {
+  const { values } = parseArgs({ args, options: { yes: { type: 'boolean', short: 'y' } } })
+  let image: string | undefined
+  let ports: string[] = []
+  // Agents and scripts get the defaults; people at a terminal get asked.
+  if (!values.yes && !json && process.stdin.isTTY && process.stdout.isTTY) {
+    intro('dev-container setup')
+    const imageAnswer = await text({
+      message: 'Image for the agent service',
+      placeholder: 'node:24',
+      defaultValue: 'node:24',
+      validate: value => value && /[\s'"]/.test(value) ? 'An image reference has no spaces or quotes' : undefined,
+    })
+    if (isCancel(imageAnswer))
+      return cancelled()
+    const portsAnswer = await text({
+      message: 'Ports to publish on 127.0.0.1 (comma-separated, optional)',
+      placeholder: '3000, 5170-5180',
+      defaultValue: '',
+      validate: value => value && !PORTS.test(value) ? 'Use ports or ranges like 3000, 5170-5180' : undefined,
+    })
+    if (isCancel(portsAnswer))
+      return cancelled()
+    image = imageAnswer
+    ports = portsAnswer.split(',').map(port => port.trim()).filter(Boolean)
+  }
+
+  const { changes, warnings } = setup({ root: process.cwd(), image, ports })
+  report(warnings, 'warning', json)
+  process.stdout.write(changes.length ? changes.map(change => `✔ ${change}\n`).join('') : 'Already set up; nothing changed.\n')
+  process.stdout.write('\nNext: review dev-container.config.ts, then run `npx dev-container up`.\n')
+  return 0
+}
+
+function cancelled(): number {
+  cancel('Setup cancelled; nothing was written.')
+  return 1
+}
+
 main(args.filter((arg, i) => i >= end || arg !== '--json'), json).then(
   (code) => {
     process.exitCode = code

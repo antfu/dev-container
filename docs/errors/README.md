@@ -12,6 +12,7 @@ Every error `dev-container` reports carries one of these codes, a fix, and a lin
 | [DEV_CONTAINER_S2003](./DEV_CONTAINER_S2003.md) | Secret command failed | host |
 | [DEV_CONTAINER_S2004](./DEV_CONTAINER_S2004.md) | Secret value cannot be stored | host |
 | [DEV_CONTAINER_S2005](./DEV_CONTAINER_S2005.md) | envFile missing | host |
+| [DEV_CONTAINER_S2006](./DEV_CONTAINER_S2006.md) | GH_TOKEN not prefilled | host |
 | [DEV_CONTAINER_N3001](./DEV_CONTAINER_N3001.md) | Port published twice | host |
 | [DEV_CONTAINER_N3002](./DEV_CONTAINER_N3002.md) | Invalid port | host |
 | [DEV_CONTAINER_N3003](./DEV_CONTAINER_N3003.md) | Port range too wide | host |

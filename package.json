@@ -67,6 +67,7 @@
     "test:broker": "Run the broker policy tests"
   },
   "dependencies": {
+    "@clack/prompts": "catalog:prod",
     "@hono/node-server": "catalog:prod",
     "@hono/zod-openapi": "catalog:prod",
     "defu": "catalog:prod",

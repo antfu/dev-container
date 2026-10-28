@@ -46,6 +46,7 @@ catalogs:
   inlined:
     '@antfu/utils': ^9.3.0
   prod:
+    '@clack/prompts': ^1.8.1
     '@hono/node-server': ^2.1.5
     '@hono/zod-openapi': ^1.6.3
     defu: ^6.1.7

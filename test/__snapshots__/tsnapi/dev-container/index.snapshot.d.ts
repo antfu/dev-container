@@ -42,6 +42,16 @@ export interface ServeControlOptions extends ControlOptions {
   hostname?: string;
   port: number;
 }
+export interface SetupOptions {
+  root: string;
+  image?: string;
+  ports?: string[];
+  gh?: string;
+}
+export interface SetupResult {
+  changes: string[];
+  warnings: Diagnostic<unknown>[];
+}
 // #endregion
 
 // #region Types
@@ -63,6 +73,7 @@ export declare function loadConfig(_?: any): Promise<{
 }>;
 export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
 export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
+export declare function setup({ root, image, ports, gh }: SetupOptions): SetupResult;
 export declare function up(_: GenerateOptions & {
   args?: string[];
   docker?: string;
