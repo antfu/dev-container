@@ -3,12 +3,8 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { cancel, intro, isCancel, text } from '@clack/prompts'
-import { loadConfig } from './config'
-import { serveControl } from './control'
-import { compose, up } from './docker'
-import { generate, readControlToken } from './generate'
+import { compose, generate, loadConfig, readControlToken, serveControl, setup, up } from './index'
 import { report, reportError, wantsJson } from './report'
-import { setup } from './setup'
 
 const HELP = `Usage: dev-container <command>
 
