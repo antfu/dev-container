@@ -1,6 +1,13 @@
 {
   "version": 1,
   "skills": {
+    "add-diagnostic": {
+      "source": "nostics",
+      "sourceType": "node_modules",
+      "skillPath": "skills/add-diagnostic/SKILL.md",
+      "version": "1.3.0",
+      "computedHash": "bffe858a73515c6dcd391644a6c5ac494f0ef56454fa713156f093f7241544f6"
+    },
     "agent-browser": {
       "source": "vercel-labs/agent-browser",
       "sourceType": "github",
@@ -92,6 +99,13 @@
       "computedHash": "39a9358732dcff385e9e4d3e60b4547856f834e54a58b35e455aa9bd49928c13",
       "via": "@antfu/skills"
     },
+    "nostics": {
+      "source": "nostics",
+      "sourceType": "node_modules",
+      "skillPath": "skills/nostics/SKILL.md",
+      "version": "1.3.0",
+      "computedHash": "1bfd2d72a88745cab1cbbc6c809501aa9b9904d56cf270b749d89d67bf9679b8"
+    },
     "nuxt-modules": {
       "source": "onmax/nuxt-skills",
       "sourceType": "github",
@@ -152,14 +166,14 @@
       "source": "vuejs-ai/skills",
       "sourceType": "github",
       "skillPath": "skills/vue-best-practices/SKILL.md",
-      "computedHash": "3df585ad31aec78fe55c56c1411262737e6b231677a3153dec512a882fde80cd",
+      "computedHash": "2f4da0a95f19b225e784981413f727ff03bfdec7818a1e5bb0a477aab633095e",
       "via": "@antfu/skills"
     },
     "vue-debug-guides": {
       "source": "vuejs-ai/skills",
       "sourceType": "github",
       "skillPath": "skills/vue-debug-guides/SKILL.md",
-      "computedHash": "fa7b31c32a6717ae47cd2ea208773e27536225ad053a564effe656bf927fe9ef",
+      "computedHash": "29e3785d80245a64ead02602062d859f6e6553b506614ac75a1ead7f1e1529da",
       "via": "@antfu/skills"
     },
     "vue-pinia-best-practices": {

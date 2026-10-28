@@ -54,7 +54,7 @@ export interface StackContext {
   root: string
   /** Absolute path of the generated `.dev-container` directory. */
   dir: string
-  /** Package root that holds the `broker/` and `relay/` build contexts. */
+  /** Package root that holds the `services/broker/` and `services/relay/` build contexts. */
   assets: string
   /** Secret env name -> placeholder. */
   placeholders: Record<string, string>
@@ -102,7 +102,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
 
   const services: Record<string, ComposeService> = {
     broker: {
-      build: { context: join(ctx.assets, 'broker') },
+      build: { context: join(ctx.assets, 'services', 'broker') },
       networks: ['caged', 'egress'],
       env_file: [{ path: envFilePath(ctx.dir, 'broker'), required: true }],
       // Passed inline rather than as a file so new placeholders make compose recreate the broker.
@@ -133,7 +133,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
 
   if (ports.length) {
     services.relay = {
-      build: { context: join(ctx.assets, 'relay') },
+      build: { context: join(ctx.assets, 'services', 'relay') },
       command: ports.map(p => `${p.service}:${formatRange(p)}`),
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,

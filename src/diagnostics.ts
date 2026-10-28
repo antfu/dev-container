@@ -5,7 +5,7 @@ export const DOCS_BASE = 'https://github.com/antfu/dev-container/blob/main/docs/
 /**
  * Every user-facing failure. Codes are stable: `C` config, `S` secrets,
  * `N` network/ports/volumes, `D` docker and the control API. Broker codes
- * (`B`) live in `broker/rules.py` and share the docs directory.
+ * (`B`) live in `services/broker/rules.py` and share the docs directory.
  */
 export const diagnostics = /* #__PURE__ */ defineDiagnostics({
   docsBase: code => `${DOCS_BASE}/${code}.md`,

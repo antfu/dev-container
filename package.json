@@ -31,12 +31,12 @@
     "dev-container": "./dist/cli.mjs"
   },
   "files": [
-    "broker/Dockerfile",
-    "broker/addon.py",
-    "broker/entrypoint.sh",
-    "broker/rules.py",
     "dist",
-    "relay",
+    "services/broker/Dockerfile",
+    "services/broker/addon.py",
+    "services/broker/entrypoint.sh",
+    "services/broker/rules.py",
+    "services/relay",
     "skills"
   ],
   "scripts": {
@@ -51,7 +51,7 @@
     "typecheck": "tsc",
     "ci": "pnpm run lint && pnpm run typecheck && pnpm run knip && pnpm run test --run && pnpm run test:broker",
     "prepare": "git config core.hooksPath .githooks && simple-git-hooks && skills experimental_sync -y",
-    "test:broker": "python3 -m unittest discover -s broker"
+    "test:broker": "python3 -m unittest discover -s services/broker"
   },
   "scripts-info": {
     "build": "Build the library for publishing",

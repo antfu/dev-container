@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +19,7 @@ function run(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}) {
 
 describe('cli', () => {
   it('generates the stack from a config found in a parent directory', () => {
-    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }], services: { agent: { image: 'alpine' } } }\n`)
     mkdirSync(join(root, 'nested'))
 
@@ -29,7 +29,7 @@ describe('cli', () => {
   })
 
   it('fails with the missing secret named', () => {
-    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }], services: { agent: { image: 'alpine' } } }\n`)
     const { code, output } = run(root, ['generate', '--json'])
     expect(code).toBe(1)
@@ -43,7 +43,7 @@ describe('cli', () => {
   })
 
   it('prints readable diagnostics for people', () => {
-    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { services: { agent: { image: 'alpine', ports: ['0'] } } }\n`)
     expect(run(root, ['generate'], { NO_COLOR: '1' })).toEqual({
       code: 1,
@@ -57,7 +57,7 @@ describe('cli', () => {
   })
 
   it('sets up a project without prompting when not on a terminal', () => {
-    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
     const bin = mkdtempSync(join(tmpdir(), 'dev-container-bin-'))
     writeFileSync(join(bin, 'gh'), '#!/bin/sh\necho gho_from_gh\n', { mode: 0o755 })
     const result = run(root, ['setup'], { PATH: `${bin}:${process.env.PATH}` })
@@ -68,7 +68,7 @@ describe('cli', () => {
   })
 
   it('rejects unknown commands', () => {
-    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { services: { agent: { image: 'alpine' } } }\n`)
     expect(run(root, ['nope']).code).toBe(1)
   })
