@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.ts"],
-  "ignoreDependencies": ["@antfu/utils", "taze", "@antfu/skills"]
+  "ignoreDependencies": ["@antfu/utils", "taze", "@antfu/skills"],
+  "workspaces": {
+    ".": { "project": ["src/**/*.ts"] },
+    "packages/monitor": { "entry": ["monitor.html"], "project": ["src/**/*.{ts,vue}"] }
+  }
 }

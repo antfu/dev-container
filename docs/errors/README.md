@@ -23,6 +23,7 @@ Every error `dev-container` reports carries one of these codes, a fix, and a lin
 | [DEV_CONTAINER_D4002](./DEV_CONTAINER_D4002.md) | docker failed | host |
 | [DEV_CONTAINER_D4003](./DEV_CONTAINER_D4003.md) | Control API: bad token | either |
 | [DEV_CONTAINER_D4004](./DEV_CONTAINER_D4004.md) | Control API: invalid request | container |
+| [DEV_CONTAINER_D4005](./DEV_CONTAINER_D4005.md) | GPG signing setup failed | host |
 | [DEV_CONTAINER_B5001](./DEV_CONTAINER_B5001.md) | Broker: host not on the allowlist | host |
 | [DEV_CONTAINER_B5002](./DEV_CONTAINER_B5002.md) | Broker: placeholder in the URL | container |
 | [DEV_CONTAINER_B5003](./DEV_CONTAINER_B5003.md) | Broker: unknown placeholder | either |

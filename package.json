@@ -40,7 +40,7 @@
     "skills"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && pnpm -C packages/monitor build",
     "dev": "tsdown --watch",
     "knip": "knip",
     "lint": "eslint --cache",
@@ -48,7 +48,7 @@
     "release": "bumpp",
     "start": "tsx src/cli.ts",
     "test": "pnpm run build && vitest",
-    "typecheck": "tsc",
+    "typecheck": "tsc && pnpm -C packages/monitor typecheck",
     "ci": "pnpm run lint && pnpm run typecheck && pnpm run knip && pnpm run test --run && pnpm run test:broker",
     "prepare": "git config core.hooksPath .githooks && simple-git-hooks && skills experimental_sync -y",
     "test:broker": "python3 -m unittest discover -s services/broker"

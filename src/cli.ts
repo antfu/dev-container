@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { cancel, intro, isCancel, text } from '@clack/prompts'
 import { compose, generate, loadConfig, readControlToken, serveControl, setup, up } from './index'
 import { report, reportError, wantsJson } from './report'
+import { installAutosync, sync, uninstallAutosync } from './sync'
 
 const HELP = `Usage: dev-container <command>
 
@@ -13,7 +14,9 @@ Commands:
   generate                 Write .dev-container/ (compose file, broker rules, resolved env files)
   up [compose up flags]    Generate, then \`docker compose up -d --build --remove-orphans\`
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
-  serve [--host] [--port]  Serve the control API (token in .dev-container/control-token)
+  serve [--host] [--port]  Serve the control API and monitor (token in .dev-container/control-token)
+  sync [--force]           Pull the checkout and redeploy when HEAD moved
+  autosync install|uninstall  Run \`sync\` on a schedule with launchd (macOS)
 
 Errors are printed as diagnostics with a code, a fix and a docs link. Pass --json
 (or set DEV_CONTAINER_JSON=1) for one JSON object per diagnostic on stderr; this is
@@ -47,10 +50,26 @@ async function main(argv: string[], json: boolean): Promise<number> {
     case 'serve': {
       const { values } = parseArgs({ args: rest, options: { host: { type: 'string' }, port: { type: 'string' } } })
       const port = values.port ? Number(values.port) : config.control.port
-      const hostname = values.host ?? '127.0.0.1'
+      const hostname = values.host ?? config.control.host
       serveControl({ dir, token: readControlToken(dir), hostname, port })
-      process.stdout.write(`Control API on http://${hostname}:${port} (OpenAPI at /openapi.json, token in ${join(dir, 'control-token')})\n`)
+      process.stdout.write(`Control API and monitor on http://${hostname}:${port} (OpenAPI at /openapi.json, token in ${join(dir, 'control-token')})\n`)
       return new Promise(() => {})
+    }
+    case 'sync': {
+      const { values } = parseArgs({ args: rest, options: { force: { type: 'boolean' } } })
+      const result = await sync({ config, root, force: values.force, onWarnings: warnings => report(warnings, 'warning', json) })
+      process.stdout.write(result === 'deployed' ? 'Deployed.\n' : 'Up to date.\n')
+      return 0
+    }
+    case 'autosync': {
+      const name = config.name ?? basename(root)
+      if (rest[0] === 'install')
+        process.stdout.write(`Installed ${installAutosync({ config, root, name })}, syncing every ${config.sync.interval}s\n`)
+      else if (rest[0] === 'uninstall')
+        uninstallAutosync(name)
+      else
+        throw new Error('Usage: dev-container autosync install|uninstall')
+      return 0
     }
     default:
       process.stderr.write(`Unknown command: ${command}\n\n${HELP}`)

@@ -161,6 +161,10 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const tailscaleServe: Record<string, TailscaleServe> = {}
   for (const node of nodes) {
     const serve: TailscaleServe = tailscaleServe[node.name] = { TCP: {}, Web: {} }
+    if (node.control)
+      serve.TCP[node.control.tailnetPort] = { HTTPS: true }
+    if (node.control)
+      serve.Web[`\${TS_CERT_DOMAIN}:${node.control.tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${CONTROL_HOST}:${node.control.port}` } } }
     for (const { target, start, tailnetPort = start } of ports.filter(p => p.node === node.name)) {
       serve.TCP[tailnetPort] = { HTTPS: true }
       serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
@@ -172,6 +176,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
       env_file: [{ path: envFilePath(ctx.dir, node.name), required: true }],
+      ...node.control && { extra_hosts: [`${CONTROL_HOST}:host-gateway`] },
       environment: {
         TS_HOSTNAME: node.hostname,
         TS_STATE_DIR: '/var/lib/tailscale',
@@ -214,6 +219,11 @@ function cagedService(
     environment.DEV_CONTAINER_CONTROL_URL = `http://${CONTROL_HOST}:${config.control.port}`
     environment.DEV_CONTAINER_CONTROL_TOKEN = ctx.controlToken
   }
+
+  if (service.git?.name)
+    Object.assign(environment, { GIT_AUTHOR_NAME: service.git.name, GIT_COMMITTER_NAME: service.git.name })
+  if (service.git?.email)
+    Object.assign(environment, { GIT_AUTHOR_EMAIL: service.git.email, GIT_COMMITTER_EMAIL: service.git.email })
 
   const hasSecretEnv = Object.values(service.env).some(value => typeof value !== 'string')
   for (const [key, value] of Object.entries(service.env)) {

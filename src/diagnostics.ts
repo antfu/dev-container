@@ -81,6 +81,10 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
       why: (p: { output: string }) => `docker failed: ${p.output}`,
       fix: 'Check that the stack is up (`dev-container up`) and the service name exists; the docker output above names the problem.',
     },
+    DEV_CONTAINER_D4005: {
+      why: (p: { service: string, output: string }) => `Could not set up GPG signing in ${p.service}: ${p.output}`,
+      fix: 'The image needs `gpg` and `git`, and `git.gpg.user` must name a user that exists in it. Fix that, then run `dev-container up` again.',
+    },
     DEV_CONTAINER_D4003: {
       why: 'Missing or wrong bearer token for the control API.',
       fix: 'Send `Authorization: Bearer <token>` with the token from .dev-container/control-token (or $DEV_CONTAINER_CONTROL_TOKEN in the cage).',

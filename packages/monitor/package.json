@@ -1,0 +1,19 @@
+{
+  "name": "@antfu/dev-container-monitor",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "catalog:web",
+    "unocss": "catalog:web",
+    "vite": "catalog:cli",
+    "vite-plugin-singlefile": "catalog:web",
+    "vue": "catalog:web",
+    "vue-tsc": "catalog:web"
+  }
+}

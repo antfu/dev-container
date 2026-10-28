@@ -92,6 +92,32 @@ describe('buildStack', () => {
     ])
   })
 
+  it('sets the commit identity from a service\'s git option', () => {
+    const { compose } = build({ services: { agent: { image: 'x', git: { name: 'Ada', email: 'ada@example.com' } } } })
+    expect(compose.services.agent!.environment).toMatchObject({
+      GIT_AUTHOR_NAME: 'Ada',
+      GIT_COMMITTER_NAME: 'Ada',
+      GIT_AUTHOR_EMAIL: 'ada@example.com',
+      GIT_COMMITTER_EMAIL: 'ada@example.com',
+    })
+  })
+
+  it('serves the monitor on the tailnet from a node of its own', () => {
+    const { tailscaleServe, compose } = build({
+      control: { port: 7357, tailscale: { hostname: 'monitor' } },
+      services: { agent: { image: 'x' } },
+    })
+    expect(tailscaleServe['tailscale-control']).toEqual({
+      TCP: { 443: { HTTPS: true } },
+      // eslint-disable-next-line no-template-curly-in-string
+      Web: { '${TS_CERT_DOMAIN}:443': { Handlers: { '/': { Proxy: 'http://host.docker.internal:7357' } } } },
+    })
+    expect(compose.services['tailscale-control']).toMatchObject({
+      environment: { TS_HOSTNAME: 'monitor' },
+      extra_hosts: ['host.docker.internal:host-gateway'],
+    })
+  })
+
   it('serves a tailnet port on another port, so nodes can all use 443', () => {
     const { tailscaleServe } = build({
       services: {

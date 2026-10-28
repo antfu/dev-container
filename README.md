@@ -123,6 +123,20 @@ export default defineConfig({
 
 A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `envSecretFile` is also consulted for `{ env }` sources, after `envFile`.
 
+### Commit identity and signing
+
+A service's `git: { name, email }` sets `GIT_AUTHOR_*` and `GIT_COMMITTER_*`. For signing, turn on the `gpg` builtin:
+
+```ts
+export default defineConfig({
+  // 'auto' reads GPG_PRIVATE_KEY (and GPG_PUBLIC_KEY) from the env files, and is off when it is unset.
+  builtins: { gpg: 'auto' },
+  services: { agent: { build: '.', git: { name: 'Ada', email: 'ada@example.com' } } },
+})
+```
+
+After every `up`, the key is piped into `gpg --import` inside each running service that has `gpg`, and `user.signingkey`, `commit.gpgsign` and `tag.gpgsign` are set for the container user. The key never goes into the environment or the compose file, but it does end up in that user's keyring, so use a dedicated key without a passphrase. Use an object to override the sources, name the container `user`, or limit `services`. Add the public key to GitHub from the monitor's **Copy public key** button. A failure is reported as [`DEV_CONTAINER_D4005`](./docs/errors/DEV_CONTAINER_D4005.md) and does not stop the stack.
+
 ### Request rules
 
 A brokered secret, builtins included, can limit which requests it is sent with. The broker checks `rules` in order whenever the secret's placeholder is in a request, and the first match wins. A request no rule matches is allowed, so end with `{ action: 'deny' }` to allow only what is listed:
@@ -155,6 +169,8 @@ Git over HTTPS uses paths like `/<owner>/<repo>.git/git-receive-pack` on `github
 | Use for | tokens agents only pass along: GitHub, npm, internal APIs | values a process must hold itself: model API keys, OAuth logins, an orchestrator's own password |
 
 Both kinds come from the host: `{ env: 'NAME' }` (the shell environment, then each `envFile`) or `{ command: '…' }` (its trimmed stdout). A brokered secret defaults to `{ env: <its env name> }`. Every value is resolved before anything is written; a missing one fails the run and is named in the error. Resolved values go only to `0600` files in `.dev-container/env/`, never into `compose.yml`.
+
+A service `env` reference can be `{ env: 'NAME', optional: true }`. The variable is left out when `NAME` is unset instead of failing the run, so one config serves hosts that set different keys.
 
 Agent CLIs use their tokens directly, so letting them hold those tokens costs nothing extra. Keep their logins across recreation with `persist`, e.g. `persist: ['/home/node/.claude']`.
 
@@ -236,7 +252,7 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 
 ## Control API
 
-`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards. It binds to `127.0.0.1:7357` by default (`control.port` in config), and every request needs the bearer token from `.dev-container/control-token`.
+`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small monitor page at `/`. It binds to `127.0.0.1:7357` by default (`control.host` and `control.port` in config), and every API request needs the bearer token from `.dev-container/control-token`. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, restarts or updates a service, and manages commit signing.
 
 | Endpoint | |
 | --- | --- |
@@ -245,11 +261,38 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 | `GET /services/{name}/logs` | `?tail=N`; `?follow=1` for SSE |
 | `POST /services/{name}/restart` | restart one service |
 | `POST /restart` | restart the stack |
+| `POST /services/{name}/update`, `POST /update` | pull base images, rebuild and recreate |
+| `GET /services/{name}/gpg` | whether signing is on, and the secret keys in the service (`?user=` picks the container user) |
+| `GET /services/{name}/gpg/public` | the armored public key, to add to GitHub; the monitor has a copy button |
+| `POST /services/{name}/gpg` | import `{ privateKey, publicKey?, user? }` and turn signing on |
+| `DELETE /services/{name}/gpg` | turn signing off; the key stays in the keyring |
 | `GET /openapi.json` | the OpenAPI 3.1 document |
 
 A service with `control: true` receives `DEV_CONTAINER_CONTROL_URL` and `DEV_CONTAINER_CONTROL_TOKEN` and reaches the server through the broker via `host.docker.internal`. On Linux, the host gateway is not loopback, so start the server with `serve --host 0.0.0.0` or with the docker bridge address.
 
+To reach the monitor over the tailnet, give the control server a node of its own. A sidecar serves `https://<hostname>.<tailnet>.ts.net` and forwards to the host through `host.docker.internal`:
+
+```ts
+export default defineConfig({
+  control: { port: 7357, host: '127.0.0.1', tailscale: { hostname: 'monitor' }, tailnetPort: 443 },
+})
+```
+
+`dev-container serve` still has to run on the host, since it drives docker. On Linux the sidecar reaches the host through the docker gateway, so set `host` to `0.0.0.0` or the bridge address there. The token still guards every API call.
+
 To mount the API in your own server instead, use `createControlApp({ dir, token })`, which returns a Hono app.
+
+## Keeping a host in sync
+
+For a stack kept in a git checkout on an always-on host, `dev-container sync` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs the `sync.commands` first, then `up`. A failed run leaves the old containers running and is retried on the next run. `sync --force` redeploys anyway.
+
+```ts
+export default defineConfig({
+  sync: { interval: 300, commands: ['pnpm install --frozen-lockfile'] },
+})
+```
+
+On macOS, `dev-container autosync install` writes a launchd agent that runs `sync` every `interval` seconds, logging to `.dev-container/sync.log`. `autosync uninstall` removes it. Elsewhere, run `dev-container sync` from cron or a systemd timer.
 
 ## Using it with an orchestrator
 

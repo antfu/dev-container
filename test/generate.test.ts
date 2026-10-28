@@ -136,6 +136,14 @@ describe('builtin secrets', () => {
     ])
   })
 
+  it('leaves out optional env references that are unset, but still resolves the set ones', () => {
+    const services = { agent: { image: 'alpine', env: { A: { env: 'SET_KEY', optional: true }, B: { env: 'UNSET_KEY', optional: true } } } }
+    expect(readFileSync(join(run({ services }, { SET_KEY: 'v' }).dir, 'env/agent.env'), 'utf8')).toBe(`A='v'\n`)
+    // Every reference unset: the env file still exists, because compose requires it.
+    expect(readFileSync(join(run({ services }, {}).dir, 'env/agent.env'), 'utf8')).toBe('')
+    expect(() => run({ services: { agent: { image: 'alpine', env: { B: { env: 'UNSET_KEY' } } } } }, {})).toThrow()
+  })
+
   it('warns and leaves the cage without a placeholder when a token is unset', () => {
     const { services, warnings } = run({ services: agent }, { GH_TOKEN: 'ghp_real' })
     expect(services.agent.environment.NPM_TOKEN).toBeUndefined()

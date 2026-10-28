@@ -37,6 +37,11 @@ function readEnvFiles(root: string, files: string[] | undefined, fallback: strin
   return Object.assign({}, ...list.map(file => readEnvFile(resolve(root, file))))
 }
 
+/** Where `{ env }` sources are looked up: the host environment, then the env files. */
+export function createLookup({ config, root, env = process.env }: GenerateOptions): SecretLookup {
+  return { root, env, envFile: { ...readEnvFiles(root, config.envFile, '.env'), ...readEnvFiles(root, config.envSecretFile, '.env.secret') } }
+}
+
 /**
  * Writes `.dev-container/`: the compose file and env files with
  * resolved secrets. Placeholders are regenerated on every run.
@@ -117,12 +122,25 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
   return [...claimed.map(({ secret }) => secret), ...unbound]
 }
 
+/** The `gpg` builtin's key sources; an unset default one is simply off. */
+export function gpgSources(config: ResolvedConfig): { privateKey: SecretSourceConfig, publicKey: SecretSourceConfig } | undefined {
+  const setting = config.builtins.gpg
+  if (!setting)
+    return undefined
+  const given = setting === 'auto' ? {} : setting
+  return { privateKey: given.privateKey ?? { env: 'GPG_PRIVATE_KEY' }, publicKey: given.publicKey ?? { env: 'GPG_PUBLIC_KEY' } }
+}
+
 /** Variables that some `{ env }` source reads itself, so they must not also become placeholders. */
 function envsRead(config: ResolvedConfig): Set<string> {
   const sources: SecretSourceConfig[] = [
     ...tailscaleNodes(config).map(node => node.authKey),
     ...config.secrets.flatMap(secret => secret.from ? [secret.from] : []),
-    ...Object.values(config.builtins).flatMap(builtin => builtin && builtin.from ? [builtin.from] : []),
+    ...BUILTIN_NAMES.flatMap((name) => {
+      const builtin = config.builtins[name]
+      return builtin && builtin.from ? [builtin.from] : []
+    }),
+    ...Object.values(gpgSources(config) ?? {}),
     ...Object.values(config.services).flatMap(service => Object.values(service.env).filter(value => typeof value !== 'string')),
   ]
   return new Set(sources.flatMap(source => 'env' in source ? [source.env] : []))
@@ -153,8 +171,13 @@ function resolveEnvFiles(config: ResolvedConfig, lookup: SecretLookup): Record<s
     files[node.name] = { TS_AUTHKEY: attempt(node.authKey, `${node.label}.authKey`) }
   for (const [name, service] of Object.entries(config.services)) {
     const refs = Object.entries(service.env).flatMap(([key, value]) => typeof value === 'string' ? [] : [[key, value] as const])
-    if (refs.length)
-      files[name] = Object.fromEntries(refs.map(([key, source]) => [key, attempt(source, `services.${name}.env.${key}`)]))
+    // The file is written even when every reference is optional and unset, since compose requires it.
+    if (refs.length) {
+      files[name] = Object.fromEntries(refs.flatMap(([key, source]) =>
+        'optional' in source && source.optional && 'env' in source && !lookupEnv(lookup, source.env)
+          ? []
+          : [[key, attempt(source, `services.${name}.env.${key}`)]]))
+    }
   }
 
   if (failures.length)
