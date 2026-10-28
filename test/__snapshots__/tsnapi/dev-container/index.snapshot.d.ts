@@ -23,6 +23,11 @@ export interface ComposeOptions {
   dir: string;
   docker?: string;
 }
+export interface ControlOptions {
+  dir: string;
+  token: string;
+  docker?: string;
+}
 export interface Generated {
   dir: string;
   composeFile: string;
@@ -31,6 +36,10 @@ export interface GenerateOptions {
   config: ResolvedConfig;
   root: string;
   env?: NodeJS.ProcessEnv;
+}
+export interface ServeControlOptions extends ControlOptions {
+  hostname?: string;
+  port: number;
 }
 // #endregion
 
@@ -50,6 +59,7 @@ export declare namespace presets {
 // #region Functions
 export declare function buildStack(_: ResolvedConfig, _: StackContext): Stack;
 export declare function compose(_: string[], { dir, docker }: ComposeOptions): Promise<number>;
+export declare function createControlApp({ dir, token, docker }: ControlOptions): OpenAPIHono;
 export declare function defineConfig(_: UserConfig): UserConfig;
 export declare function generate({ config, root, env }: GenerateOptions): Generated;
 export declare function loadConfig(_?: any): Promise<{
@@ -57,6 +67,7 @@ export declare function loadConfig(_?: any): Promise<{
   root: string;
 }>;
 export declare function resolveConfig(_: UserConfig): ResolvedConfig;
+export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
 export declare function up(_: GenerateOptions & {
   args?: string[];
   docker?: string;

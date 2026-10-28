@@ -61,7 +61,10 @@
     "test:broker": "Run the broker policy tests"
   },
   "dependencies": {
+    "@hono/node-server": "catalog:prod",
+    "@hono/zod-openapi": "catalog:prod",
     "defu": "catalog:prod",
+    "hono": "catalog:prod",
     "unconfig": "catalog:prod",
     "yaml": "catalog:prod",
     "zod": "catalog:prod"

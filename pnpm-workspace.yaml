@@ -46,7 +46,10 @@ catalogs:
   inlined:
     '@antfu/utils': ^9.3.0
   prod:
+    '@hono/node-server': ^2.1.5
+    '@hono/zod-openapi': ^1.6.3
     defu: ^6.1.7
+    hono: ^4.13.14
     unconfig: ^7.5.0
     yaml: ^2.9.1
     zod: ^4.6.7
