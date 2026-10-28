@@ -19,7 +19,7 @@ You are **inside the cage** if `HTTPS_PROXY` is `http://broker:8080`.
 
 ## On the host: the repair loop
 
-1. If there is no config, run `npx @antfu/dev-container setup`. It writes the config, `.env` and `.env.secret` (`GH_TOKEN` from `gh auth token`), and adds `.gitignore` entries. It never overwrites existing values.
+1. If there is no config, run `npx @antfu/dev-container setup`. It writes the config, `.env` and `.env.secret` (with empty `GH_TOKEN` and `NPM_TOKEN`), and adds `.gitignore` entries. It never overwrites existing values.
 2. Run `npx @antfu/dev-container generate --json`. Diagnostics go to stderr as one JSON object per line: `{ level, name, why, fix, docs, sources?, data? }`. Agents get JSON automatically.
 3. For each `level: "error"`, apply its `fix`. The `docs` link explains the code. `data.path` on `DEV_CONTAINER_C1002` names the config field. Config and secret errors are all listed in one run, so fix every one before re-running.
 4. Re-run step 2 until there are no errors. Warnings such as `DEV_CONTAINER_S2002` (a builtin token is unset) are fine to leave.

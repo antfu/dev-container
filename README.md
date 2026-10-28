@@ -24,7 +24,7 @@ npx @antfu/dev-container setup
 
 - `dev-container.config.ts` with one idle `agent` service
 - `.env` for plain settings
-- `.env.secret` (mode `0600`), with `GH_TOKEN` filled from `gh auth token` when the gh CLI is logged in
+- `.env.secret` (mode `0600`), with empty `GH_TOKEN` and `NPM_TOKEN` entries to fill in
 - `.gitignore` entries for `.env`, `.env.secret` and `.dev-container/`
 
 Run it again any time; it only fills gaps and never overwrites existing values. Without a terminal, or when an AI agent runs it, it takes the defaults (`node:24`, no ports) and doesn't prompt; `--yes` does the same.
