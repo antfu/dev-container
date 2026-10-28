@@ -6,7 +6,6 @@ import { defineConfig } from '@antfu/dev-container'
  * joins the browser's network namespace.
  */
 export default defineConfig({
-  envFile: ['.env', '.env.secret'],
   tailscale: { hostname: 'paseo' },
   // GH_TOKEN is brokered as usual; agents can still use it for anything but deleting a repo.
   builtins: { github: { rules: [{ action: 'deny', method: 'DELETE', path: '/repos/*/*' }] } },

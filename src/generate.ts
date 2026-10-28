@@ -31,14 +31,20 @@ export interface GenerateOptions {
   env?: NodeJS.ProcessEnv
 }
 
+/** Merges the listed dotenv files, which must exist; without a list, the default one is read only if present. */
+function readEnvFiles(root: string, files: string[] | undefined, fallback: string): Record<string, string> {
+  const list = files ?? [fallback].filter(file => existsSync(resolve(root, file)))
+  return Object.assign({}, ...list.map(file => readEnvFile(resolve(root, file))))
+}
+
 /**
  * Writes `.dev-container/`: the compose file and env files with
  * resolved secrets. Placeholders are regenerated on every run.
  */
 export function generate({ config: userConfig, root, env = process.env }: GenerateOptions): Generated {
   const dir = join(root, '.dev-container')
-  const secretFile: Record<string, string> = Object.assign({}, ...userConfig.secretFile.map(file => readEnvFile(resolve(root, file))))
-  const lookup = { root, env, envFile: Object.assign({}, ...userConfig.envFile.map(file => readEnvFile(resolve(root, file))), secretFile) }
+  const secretFile = readEnvFiles(root, userConfig.envSecretFile, '.env.secret')
+  const lookup = { root, env, envFile: { ...readEnvFiles(root, userConfig.envFile, '.env'), ...secretFile } }
   const warnings: Diagnostic<unknown>[] = []
   const config = { ...userConfig, secrets: activeSecrets(userConfig, lookup, warnings, Object.keys(secretFile)) }
   const envFiles = resolveEnvFiles(config, lookup)
@@ -78,7 +84,7 @@ export function readControlToken(dir: string): string {
 }
 
 /**
- * Enabled builtins, the configured secrets, then every other `secretFile` variable bound to no host;
+ * Enabled builtins, the configured secrets, then every other `envSecretFile` variable bound to no host;
  * no two may claim the same variable.
  */
 function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: Diagnostic<unknown>[], fileVars: string[]): ResolvedSecret[] {

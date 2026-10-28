@@ -71,7 +71,6 @@ function starterConfig(image: string, ports: string[]): string {
 // Reference: https://github.com/antfu/dev-container#config
 // Examples (Paseo, opencode, pi, Claude Code): https://github.com/antfu/dev-container/tree/main/examples
 export default {
-  envFile: ['.env', '.env.secret'],
   services: {
     agent: {
       image: '${image}',

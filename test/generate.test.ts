@@ -24,7 +24,6 @@ describe('generate', () => {
     writeFileSync(join(root, '.env'), 'ACME_KEY=from-env\nCMD_KEY=unused\n')
     writeFileSync(join(root, '.env.secret'), 'ACME_KEY=from-secret\n')
     const { dir, composeFile, services, brokerEnv } = run({
-      envFile: ['.env', '.env.secret'],
       secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }, { env: 'CMD_KEY', hosts: ['x.dev'], from: { command: 'echo from-command' } }],
       services: { agent: { image: 'alpine', env: { PASSWORD: { env: 'APP_PASSWORD' } } } },
     }, { GH_TOKEN: 'ghp_real', APP_PASSWORD: 'hunter2' }, root)
@@ -111,11 +110,11 @@ describe('builtin secrets', () => {
     expect(run({ envFile: '.env.secret', services: agent }, {}, root).brokerEnv).toContain(`DEV_CONTAINER_SECRET_GH_TOKEN='from-file'`)
   })
 
-  it('brokers every secretFile variable, binding only the ones a builtin or secret gives hosts', () => {
+  it('brokers every envSecretFile variable, binding only the ones a builtin or secret gives hosts', () => {
     const root = project()
     writeFileSync(join(root, '.env.secret'), 'GITHUB_TOKEN=ghp_real\nACME_KEY=acme_real\nSTRAY_KEY=stray_real\nTS_AUTHKEY=tskey\nAPP_PASSWORD=hunter2\n')
     const { services, brokerEnv } = run({
-      secretFile: '.env.secret',
+      envSecretFile: '.env.secret',
       builtins: { npm: false },
       secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }],
       tailscale: { hostname: 'ts' },

@@ -59,7 +59,6 @@ When the host has to act, quote the diagnostic's `fix` line to the user verbatim
 import type { UserConfig } from '@antfu/dev-container'
 
 export default {
-  envFile: ['.env', '.env.secret'], // later files win; the shell env wins over both
   builtins: { npm: false }, // github/npm are on whenever their token is set
   secrets: [{
     env: 'ACME_KEY',

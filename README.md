@@ -52,8 +52,8 @@ Caged services trust the broker's CA through environment variables only (`SSL_CE
 export default defineConfig({
   // Compose project name; defaults to the directory name.
   name: 'my-agents',
-  // Dotenv files consulted after the host environment; later files win.
-  envFile: ['.env', '.env.secret'],
+  // Dotenv files consulted after the host environment; later files win. Default: .env
+  // envFile: '.env',
   // Host address published ports bind to.
   bind: '127.0.0.1',
 
@@ -107,21 +107,21 @@ export default defineConfig({
 | `github` | `GH_TOKEN`, then `GITHUB_TOKEN` | `GH_TOKEN`, `GITHUB_TOKEN`, plus a git credential helper | `api.github.com`, `uploads.github.com`, `github.com`, `codeload.github.com` |
 | `npm` | `NPM_TOKEN` | `NPM_TOKEN` | `registry.npmjs.org` |
 
-A builtin is on whenever its token is set in the shell or an `envFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
+A builtin is on whenever its token is set in the shell, an `envFile` or an `envSecretFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
 
 ### Brokering a whole secret file
 
-`secretFile` lists dotenv files whose every variable is brokered, with no `secrets` entry needed. Each one becomes a placeholder in the cage, and the broker swaps in the real value on the wire.
+`envSecretFile` (default `.env.secret`) lists dotenv files whose every variable is brokered, with no `secrets` entry needed. Each one becomes a placeholder in the cage, and the broker swaps in the real value on the wire.
 
 ```ts
 export default defineConfig({
   envFile: '.env', // values the cage may hold itself
-  secretFile: '.env.secret', // everything here stays with the broker
+  envSecretFile: '.env.secret', // everything here stays with the broker
   // ...
 })
 ```
 
-A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `secretFile` is also consulted for `{ env }` sources, after `envFile`.
+A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `envSecretFile` is also consulted for `{ env }` sources, after `envFile`.
 
 ### Request rules
 

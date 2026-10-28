@@ -2,7 +2,6 @@ import { defineConfig } from '@antfu/dev-container'
 
 /** A plain shell agent: `dev-container up`, then `dev-container compose exec claude claude`. */
 export default defineConfig({
-  envFile: ['.env', '.env.secret'],
   egress: {
     policy: 'allowlist',
     allow: ['api.anthropic.com', 'platform.claude.com', 'claude.ai', 'statsig.anthropic.com', 'registry.npmjs.org'],
