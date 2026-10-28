@@ -36,7 +36,8 @@
     "broker/entrypoint.sh",
     "broker/rules.py",
     "dist",
-    "relay"
+    "relay",
+    "skills"
   ],
   "scripts": {
     "build": "tsdown",

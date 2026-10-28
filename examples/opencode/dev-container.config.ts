@@ -1,6 +1,7 @@
 import { defineConfig } from 'dev-container'
 
 export default defineConfig({
+  envFile: ['.env', '.env.secret'],
   services: {
     opencode: {
       build: '.',

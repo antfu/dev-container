@@ -2,6 +2,7 @@ import { defineConfig } from 'dev-container'
 
 /** Interactive: `dev-container up`, then `dev-container compose exec pi pi`. */
 export default defineConfig({
+  envFile: ['.env', '.env.secret'],
   services: {
     pi: {
       build: '.',
