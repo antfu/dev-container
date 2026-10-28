@@ -39,7 +39,9 @@ async function waitForExit(pid: number) {
 
 describe('control API', () => {
   it('rejects requests without the token', async () => {
-    expect((await app().request('/services')).status).toBe(401)
+    const response = await app().request('/services')
+    expect(response.status).toBe(401)
+    expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4003' })
     expect((await app().request('/services', { headers: { Authorization: 'Bearer wrong' } })).status).toBe(401)
   })
 
@@ -104,19 +106,22 @@ describe('control API', () => {
   it('surfaces docker errors', async () => {
     const response = await app().request('/services/missing/restart', { method: 'POST', ...auth })
     expect(response.status).toBe(502)
-    expect(await response.json()).toEqual({ error: 'no such service: missing' })
+    expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4002', why: 'docker failed: no such service: missing', docs: expect.stringContaining('DEV_CONTAINER_D4002.md') })
   })
 
   it('reports a missing docker binary instead of crashing', async () => {
     const broken = createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker: join(tmpdir(), 'no-such-docker') })
-    expect((await broken.request('/services', auth)).status).toBe(502)
+    const response = await broken.request('/services', auth)
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4001' })
     const events = await readEvents(await broken.request('/services/agent/logs?follow=1', auth), 1)
-    expect(events[0]!.event).toBe('error')
+    expect(events[0]).toMatchObject({ event: 'error', data: expect.stringContaining('DEV_CONTAINER_D4001') })
   })
 
   it('rejects service names that could be read as flags', async () => {
     const response = await app().request('/services/--all/restart', { method: 'POST', ...auth })
     expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4004' })
   })
 
   it('serves its OpenAPI document', async () => {

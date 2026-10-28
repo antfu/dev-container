@@ -50,6 +50,8 @@ catalogs:
     '@hono/zod-openapi': ^1.6.3
     defu: ^6.1.7
     hono: ^4.13.14
+    nostics: ^1.3.0
+    std-env: ^4.3.0
     unconfig: ^7.5.0
     yaml: ^2.9.1
     zod: ^4.6.7

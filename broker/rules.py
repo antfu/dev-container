@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 
 PLACEHOLDER = re.compile(r"dc-[A-Za-z_][A-Za-z0-9_]*-[0-9a-f]{16}")
 
+# Shares its docs directory with the TypeScript catalog in src/diagnostics.ts.
+DOCS_BASE = "https://github.com/antfu/dev-container/blob/main/docs/errors"
+HOST_SIDE = "This is configured on the host in dev-container.config.ts; it cannot be changed from inside the container"
+
 
 @dataclass(frozen=True)
 class Secret:
@@ -36,11 +40,30 @@ class Rules:
         return cls(policy=data["policy"], allow=tuple(data["allow"]), secrets=secrets)
 
 
+@dataclass(frozen=True)
+class Block:
+    code: str
+    why: str
+    fix: str
+
+    def render(self):
+        """Same layout as nostics' plain formatter, so agents read one format everywhere."""
+        return "[%s] %s\n\u251c\u25b6 fix: %s\n\u2570\u25b6 see: %s/%s.md\n" % (self.code, self.why, self.fix, DOCS_BASE, self.code)
+
+
 @dataclass
 class Decision:
-    blocked: str = ""
+    blocked: Block = None
     headers: list = field(default_factory=list)
     injected: list = field(default_factory=list)
+
+
+def not_allowed(host):
+    return Block(
+        "DEV_CONTAINER_B5001",
+        "Host %s is not on the egress allowlist." % host,
+        "Ask for `%s` to be added to `egress.allow`, then `dev-container up`. %s." % (host, HOST_SIDE),
+    )
 
 
 def host_matches(pattern, host, port):
@@ -75,10 +98,14 @@ def decide(rules, scheme, host, port, url, headers):
     by_placeholder = {s.placeholder: s for s in rules.secrets}
 
     if not allowed(rules, host, port):
-        return Decision(blocked="host %s is not on the allowlist" % host)
+        return Decision(blocked=not_allowed(host))
 
     if PLACEHOLDER.search(url):
-        return Decision(blocked="placeholder in URL")
+        return Decision(blocked=Block(
+            "DEV_CONTAINER_B5002",
+            "A secret placeholder appears in the URL; the broker only injects secrets into request headers.",
+            "Send the credential in a header such as `Authorization` or `x-api-key` instead of the query string.",
+        ))
 
     injected = []
 
@@ -86,13 +113,29 @@ def decide(rules, scheme, host, port, url, headers):
         def swap(match):
             secret = by_placeholder.get(match.group(0))
             if secret is None:
-                raise _Block("unknown placeholder (stale container?)")
+                raise _Block(Block(
+                    "DEV_CONTAINER_B5003",
+                    "The request carries a placeholder the broker does not know, usually one from before the last `dev-container up`.",
+                    "Read the token from its environment variable again instead of a stored copy; if the variable itself is stale, restart the container with `dev-container up` on the host.",
+                ))
             if not any(host_matches(p, host, port) for p in secret.hosts):
-                raise _Block("%s is not bound to %s" % (secret.name, host))
+                raise _Block(Block(
+                    "DEV_CONTAINER_B5004",
+                    "%s is not bound to %s, so the broker will not send it there." % (secret.name, host),
+                    "Send %s only to %s. If %s truly needs it, ask for the host to be added to that secret's `hosts`. %s." % (secret.name, ", ".join(secret.hosts), host, HOST_SIDE),
+                ))
             if scheme != "https":
-                raise _Block("refusing to send %s over %s" % (secret.name, scheme))
+                raise _Block(Block(
+                    "DEV_CONTAINER_B5005",
+                    "Refusing to send %s over %s." % (secret.name, scheme),
+                    "Use an https:// URL for %s." % host,
+                ))
             if not secret.value:
-                raise _Block("%s has no value in the broker" % secret.name)
+                raise _Block(Block(
+                    "DEV_CONTAINER_B5006",
+                    "%s has no value in the broker." % secret.name,
+                    "Ask for %s to be set on the host (e.g. in .env.secret), then `dev-container up`. %s." % (secret.name, HOST_SIDE),
+                ))
             if secret.name not in injected:
                 injected.append(secret.name)
             return secret.value
@@ -104,7 +147,7 @@ def decide(rules, scheme, host, port, url, headers):
         for name, value in headers:
             out.append((name, _substitute_header(value, substitute)))
     except _Block as block:
-        return Decision(blocked=str(block))
+        return Decision(blocked=block.args[0])
     return Decision(headers=out, injected=injected)
 
 

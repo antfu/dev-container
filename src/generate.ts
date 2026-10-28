@@ -1,9 +1,11 @@
-import type { ResolvedConfig } from './config'
+import type { ResolvedConfig, SecretSourceConfig } from './config'
+import type { SecretLookup } from './secrets'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { Diagnostic } from 'nostics'
 import { stringify } from 'yaml'
 import { buildStack, envFilePath } from './compose'
 import { formatEnvFile, readEnvFile, resolveSource } from './secrets'
@@ -63,15 +65,17 @@ export function readControlToken(dir: string): string {
   return token
 }
 
-/** Resolves every secret up front so a missing one fails before anything is written. */
-function resolveEnvFiles(config: ResolvedConfig, lookup: Parameters<typeof resolveSource>[1]): Record<string, Record<string, string>> {
-  const errors: string[] = []
-  const attempt = (label: string, run: () => string): string => {
+/** Resolves every secret up front so all missing ones are reported before anything is written. */
+function resolveEnvFiles(config: ResolvedConfig, lookup: SecretLookup): Record<string, Record<string, string>> {
+  const failures: Diagnostic<unknown>[] = []
+  const attempt = (source: SecretSourceConfig, label: string): string => {
     try {
-      return run()
+      return resolveSource(source, lookup, label)
     }
     catch (error) {
-      errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`)
+      if (!(error instanceof Diagnostic))
+        throw error
+      failures.push(error)
       return ''
     }
   }
@@ -79,20 +83,18 @@ function resolveEnvFiles(config: ResolvedConfig, lookup: Parameters<typeof resol
   const files: Record<string, Record<string, string>> = {
     broker: Object.fromEntries(config.secrets.map(secret => [
       `DEV_CONTAINER_SECRET_${secret.env}`,
-      attempt(`secret ${secret.env}`, () => resolveSource(secret.from ?? { env: secret.env }, lookup)),
+      attempt(secret.from ?? { env: secret.env }, `secret ${secret.env}`),
     ])),
   }
-  if (config.tailscale) {
-    const { authKey } = config.tailscale
-    files.tailscale = { TS_AUTHKEY: attempt('tailscale.authKey', () => resolveSource(authKey, lookup)) }
-  }
+  if (config.tailscale)
+    files.tailscale = { TS_AUTHKEY: attempt(config.tailscale.authKey, 'tailscale.authKey') }
   for (const [name, service] of Object.entries(config.services)) {
     const refs = Object.entries(service.env).flatMap(([key, value]) => typeof value === 'string' ? [] : [[key, value] as const])
     if (refs.length)
-      files[name] = Object.fromEntries(refs.map(([key, source]) => [key, attempt(`services.${name}.env.${key}`, () => resolveSource(source, lookup))]))
+      files[name] = Object.fromEntries(refs.map(([key, source]) => [key, attempt(source, `services.${name}.env.${key}`)]))
   }
 
-  if (errors.length)
-    throw new Error(`Could not resolve secrets:\n${errors.map(e => `  - ${e}`).join('\n')}`)
+  if (failures.length)
+    throw new AggregateError(failures, 'Could not resolve secrets')
   return files
 }

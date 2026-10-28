@@ -2,6 +2,7 @@ import type { JsonValue, ResolvedConfig, ResolvedService } from './config'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { defu } from 'defu'
+import { diagnostics } from './diagnostics'
 
 const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
 const PROXY = 'http://broker:8080'
@@ -125,7 +126,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   for (const [name, service] of Object.entries(config.services)) {
     const dirs = service.persist.map(path => join(ctx.dir, 'state', name, slugify(path)))
     if (new Set(dirs).size !== dirs.length)
-      throw new Error(`Persist paths of service ${name} map to the same state directory: ${service.persist.join(', ')}`)
+      throw diagnostics.DEV_CONTAINER_N3006({ service: name, paths: service.persist })
     persistDirs.push(...dirs)
     services[name] = cagedService(config, ctx, name, service, environment, dirs)
   }
@@ -277,7 +278,7 @@ function collectPorts(config: ResolvedConfig): PublishedPort[] {
     for (let p = start; p <= end; p++) {
       const owner = owners.get(p)
       if (owner)
-        throw new Error(`Port ${p} is published by both ${owner} and ${service}`)
+        throw diagnostics.DEV_CONTAINER_N3001({ port: p, first: owner, second: service })
       owners.set(p, service)
     }
   }
@@ -288,14 +289,14 @@ function parsePort(service: string, port: string, tailnet: boolean, hasTailscale
   const [start = 0, end = start] = port.split('-').map(Number)
   const parsed = { service, start, end, tailnet }
   if (start < 1 || end > 65535 || end < start)
-    throw new Error(`Invalid port range ${port} on service ${service}`)
+    throw diagnostics.DEV_CONTAINER_N3002({ port, service })
   // The relay runs one forwarder per port.
   if (end - start >= MAX_RANGE)
-    throw new Error(`Port range ${port} on service ${service} exceeds ${MAX_RANGE} ports`)
+    throw diagnostics.DEV_CONTAINER_N3003({ port, service, max: MAX_RANGE })
   if (tailnet && parsed.end !== parsed.start)
-    throw new Error(`Port ranges cannot be served on the tailnet (${port} on service ${service})`)
+    throw diagnostics.DEV_CONTAINER_N3004({ port, service })
   if (tailnet && !hasTailscale)
-    throw new Error(`Port ${port} on service ${service} sets \`tailnet\` but \`tailscale\` is not configured`)
+    throw diagnostics.DEV_CONTAINER_N3005({ port, service })
   return parsed
 }
 

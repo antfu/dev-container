@@ -71,6 +71,8 @@
     "@hono/zod-openapi": "catalog:prod",
     "defu": "catalog:prod",
     "hono": "catalog:prod",
+    "nostics": "catalog:prod",
+    "std-env": "catalog:prod",
     "unconfig": "catalog:prod",
     "yaml": "catalog:prod",
     "zod": "catalog:prod"

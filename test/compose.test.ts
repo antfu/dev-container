@@ -113,29 +113,52 @@ describe('buildStack', () => {
     expect(compose.services.broker!.env_file).toEqual([{ path: '/work/my-project/.dev-container/env/broker.env', required: true }])
   })
 
-  it.each<[string, UserConfig]>([
-    ['overlapping ports', { services: { a: { image: 'x', ports: ['3000-3002'] }, b: { image: 'x', ports: [3001] } } }],
-    ['a tailnet range', { tailscale: { hostname: 'h' }, services: { a: { image: 'x', ports: [{ port: '3000-3001', tailnet: true }] } } }],
-    ['tailnet without tailscale', { services: { a: { image: 'x', ports: [{ port: 3000, tailnet: true }] } } }],
-    ['a reversed range', { services: { a: { image: 'x', ports: ['3002-3000'] } } }],
-    ['port 0', { services: { a: { image: 'x', ports: ['0'] } } }],
-    ['a port above 65535', { services: { a: { image: 'x', ports: ['99999'] } } }],
-    ['an oversized range', { services: { a: { image: 'x', ports: ['1-65535'] } } }],
-    ['colliding persist paths', { services: { a: { image: 'x', persist: ['/a/b-c', '/a/b/c'] } } }],
-  ])('rejects %s', (_, config) => {
-    expect(() => build(config)).toThrowErrorMatchingSnapshot()
+  it.each<[string, string, UserConfig]>([
+    ['overlapping ports', 'N3001', { services: { a: { image: 'x', ports: ['3000-3002'] }, b: { image: 'x', ports: [3001] } } }],
+    ['a reversed range', 'N3002', { services: { a: { image: 'x', ports: ['3002-3000'] } } }],
+    ['port 0', 'N3002', { services: { a: { image: 'x', ports: ['0'] } } }],
+    ['a port above 65535', 'N3002', { services: { a: { image: 'x', ports: ['99999'] } } }],
+    ['an oversized range', 'N3003', { services: { a: { image: 'x', ports: ['1-65535'] } } }],
+    ['a tailnet range', 'N3004', { tailscale: { hostname: 'h' }, services: { a: { image: 'x', ports: [{ port: '3000-3001', tailnet: true }] } } }],
+    ['tailnet without tailscale', 'N3005', { services: { a: { image: 'x', ports: [{ port: 3000, tailnet: true }] } } }],
+    ['colliding persist paths', 'N3006', { services: { a: { image: 'x', persist: ['/a/b-c', '/a/b/c'] } } }],
+  ])('rejects %s', (_, code, config) => {
+    expect(() => build(config)).toThrow(expect.objectContaining({ name: `DEV_CONTAINER_${code}` }))
   })
 })
 
 describe('resolveConfig', () => {
-  it.each<[string, UserConfig]>([
-    ['no services', { services: {} }],
-    ['a reserved service name', { services: { broker: { image: 'x' } } }],
-    ['a service without image or build', { services: { a: {} } }],
-    ['a malformed host pattern', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
-    ['a relative persist path', { services: { a: { image: 'x', persist: ['home'] } } }],
-    ['a reserved volume name', { services: { a: { image: 'x', volumes: ['broker-ca:/stolen'] } } }],
-  ])('rejects %s', (_, config) => {
-    expect(() => resolveConfig(config)).toThrowErrorMatchingSnapshot()
+  it.each<[string, string, UserConfig]>([
+    ['no services', 'services', { services: {} }],
+    ['a reserved service name', 'services', { services: { broker: { image: 'x' } } }],
+    ['a service without image or build', 'services.a', { services: { a: {} } }],
+    ['a malformed host pattern', 'secrets.0.hosts.0', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
+    ['a relative persist path', 'services.a.persist.0', { services: { a: { image: 'x', persist: ['home'] } } }],
+    ['a reserved volume name', 'services.a.volumes.0', { services: { a: { image: 'x', volumes: ['broker-ca:/stolen'] } } }],
+  ])('rejects %s', (_, path, config) => {
+    expect(() => resolveConfig(config, '/work/dev-container.config.ts')).toThrow(expect.objectContaining({
+      errors: [expect.objectContaining({ name: 'DEV_CONTAINER_C1002', data: { path }, sources: ['/work/dev-container.config.ts'] })],
+    }))
+  })
+
+  it('reports every invalid field at once', () => {
+    const error = (() => {
+      try {
+        // Ill-typed on purpose, as a hand-written JS config could be.
+        resolveConfig(JSON.parse('{ "bind": 1, "services": { "a": {}, "b": { "image": "x", "persist": ["rel"] } } }'))
+      }
+      catch (error) {
+        return error
+      }
+    })()
+    if (!(error instanceof AggregateError))
+      expect.unreachable()
+    expect(error.errors.map(e => e.message)).toMatchInlineSnapshot(`
+      [
+        "Invalid config at \`bind\`: Invalid input: expected string, received number.",
+        "Invalid config at \`services.a\`: requires \`image\` or \`build\`.",
+        "Invalid config at \`services.b.persist.0\`: Invalid string: must start with "/".",
+      ]
+    `)
   })
 })

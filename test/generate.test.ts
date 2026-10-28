@@ -60,12 +60,13 @@ describe('generate', () => {
       tailscale: { hostname: 'h' },
       services: { agent: { image: 'alpine' } },
     })
-    expect(() => generate({ config, root, env: {} })).toThrowErrorMatchingInlineSnapshot(`
-      [Error: Could not resolve secrets:
-        - secret GH_TOKEN: $GH_TOKEN is not set in the environment or envFile
-        - secret NPM_TOKEN: $NPM_TOKEN is not set in the environment or envFile
-        - tailscale.authKey: $TS_AUTHKEY is not set in the environment or envFile]
-    `)
+    expect(() => generate({ config, root, env: {} })).toThrow(expect.objectContaining({
+      errors: [
+        expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'secret GH_TOKEN: $GH_TOKEN is not set in the environment or any envFile.' }),
+        expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'secret NPM_TOKEN: $NPM_TOKEN is not set in the environment or any envFile.' }),
+        expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'tailscale.authKey: $TS_AUTHKEY is not set in the environment or any envFile.' }),
+      ],
+    }))
     expect(() => statSync(join(root, '.dev-container'))).toThrow()
   })
 })

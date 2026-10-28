@@ -65,8 +65,9 @@ export declare function generate({ config, root, env }: GenerateOptions): Genera
 export declare function loadConfig(_?: any): Promise<{
   config: ResolvedConfig;
   root: string;
+  file: string;
 }>;
-export declare function resolveConfig(_: UserConfig): ResolvedConfig;
+export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
 export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
 export declare function up(_: GenerateOptions & {
   args?: string[];

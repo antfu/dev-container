@@ -1,14 +1,16 @@
 import type { ServerType } from '@hono/node-server'
 import type { SSEStreamingApi } from 'hono/streaming'
+import { Buffer } from 'node:buffer'
 import { execFile, spawn } from 'node:child_process'
+import { timingSafeEqual } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
-import { bearerAuth } from 'hono/bearer-auth'
-import { HTTPException } from 'hono/http-exception'
 import { streamSSE } from 'hono/streaming'
-import { composeArgs } from './docker'
+import { Diagnostic } from 'nostics'
+import { diagnostics } from './diagnostics'
+import { composeArgs, dockerFailure } from './docker'
 
 const run = promisify(execFile)
 
@@ -43,8 +45,18 @@ const Stats = z.object({
   pids: z.number(),
 }).openapi('Stats')
 
-const Failure = z.object({ error: z.string() }).openapi('Failure')
-const failure = { 'application/json': { schema: Failure } }
+const DiagnosticBody = z.object({
+  name: z.string().openapi({ example: 'DEV_CONTAINER_D4002' }),
+  why: z.string(),
+  fix: z.string().optional(),
+  docs: z.string().optional(),
+}).openapi('Diagnostic')
+const failure = { 'application/json': { schema: DiagnosticBody } }
+const errors = {
+  400: { description: 'Invalid request (DEV_CONTAINER_D4004)', content: failure },
+  401: { description: 'Missing or wrong token (DEV_CONTAINER_D4003)', content: failure },
+  502: { description: 'Docker failed (DEV_CONTAINER_D4001, DEV_CONTAINER_D4002)', content: failure },
+}
 const ok = { 'application/json': { schema: z.object({ ok: z.literal(true) }) } }
 const sse = (description: string): { 'text/event-stream': { schema: z.ZodString } } => ({ 'text/event-stream': { schema: z.string().openapi({ description }) } })
 
@@ -55,7 +67,7 @@ const routes = {
     summary: 'List services with their state and health',
     responses: {
       200: { description: 'Services', content: { 'application/json': { schema: z.object({ services: z.array(Service) }) } } },
-      502: { description: 'Docker failed', content: failure },
+      ...errors,
     },
   }),
   stats: createRoute({
@@ -68,7 +80,7 @@ const routes = {
         description: 'A snapshot, or with `stream=1` one `stats` event per container per tick',
         content: { 'application/json': { schema: z.object({ stats: z.array(Stats) }) }, ...sse('`stats` events carrying a Stats object') },
       },
-      502: { description: 'Docker failed', content: failure },
+      ...errors,
     },
   }),
   logs: createRoute({
@@ -84,21 +96,21 @@ const routes = {
         description: 'The last lines, or with `follow=1` one `log` event per line',
         content: { 'application/json': { schema: z.object({ lines: z.array(z.string()) }) }, ...sse('`log` events carrying one line') },
       },
-      502: { description: 'Docker failed', content: failure },
+      ...errors,
     },
   }),
   restartAll: createRoute({
     method: 'post',
     path: '/restart',
     summary: 'Restart every service',
-    responses: { 200: { description: 'Restarted', content: ok }, 502: { description: 'Docker failed', content: failure } },
+    responses: { 200: { description: 'Restarted', content: ok }, ...errors },
   }),
   restart: createRoute({
     method: 'post',
     path: '/services/{name}/restart',
     summary: 'Restart one service',
     request: { params: z.object({ name: ServiceName }) },
-    responses: { 200: { description: 'Restarted', content: ok }, 502: { description: 'Docker failed', content: failure } },
+    responses: { 200: { description: 'Restarted', content: ok }, ...errors },
   }),
 }
 
@@ -120,7 +132,7 @@ export function createControlApp({ dir, token, docker = 'docker' }: ControlOptio
           void stream.writeSSE({ event, data })
       })
       child.on('error', (error) => {
-        void stream.writeSSE({ event: 'error', data: error.message }).then(resolve)
+        void stream.writeSSE({ event: 'error', data: JSON.stringify(toBody(dockerFailure(error, docker))) }).then(resolve)
       })
       child.on('close', () => resolve())
     })
@@ -129,17 +141,18 @@ export function createControlApp({ dir, token, docker = 'docker' }: ControlOptio
   const app = new OpenAPIHono({
     defaultHook: (result, c) => {
       if (!result.success)
-        return c.json({ error: z.prettifyError(result.error) }, 400)
+        return c.json(toBody(diagnostics.DEV_CONTAINER_D4004({ message: z.prettifyError(result.error) })), 400)
     },
   })
 
-  app.use('*', bearerAuth({ token }))
-  app.onError((error, c) => {
-    if (error instanceof HTTPException)
-      return error.getResponse()
-    const stderr = 'stderr' in error && typeof error.stderr === 'string' ? error.stderr.trim() : ''
-    return c.json({ error: stderr || error.message }, 502)
+  const expected = Buffer.from(`Bearer ${token}`)
+  app.use('*', async (c, next) => {
+    const given = Buffer.from(c.req.header('authorization') ?? '')
+    if (given.length !== expected.length || !timingSafeEqual(given, expected))
+      return c.json(toBody(diagnostics.DEV_CONTAINER_D4003()), 401)
+    await next()
   })
+  app.onError((error, c) => c.json(toBody(error instanceof Diagnostic ? error : dockerFailure(error, docker)), 502))
 
   app.openapi(routes.services, async c => c.json({ services: await listServices() }, 200))
 
@@ -204,6 +217,10 @@ export interface ServeControlOptions extends ControlOptions {
 /** Serves the control API over HTTP. */
 export function serveControl({ hostname = '127.0.0.1', port, ...options }: ServeControlOptions): ServerType {
   return serve({ fetch: createControlApp(options).fetch, hostname, port })
+}
+
+function toBody(diagnostic: Diagnostic): z.infer<typeof DiagnosticBody> {
+  return { name: diagnostic.name, why: diagnostic.why, fix: diagnostic.fix, docs: diagnostic.docs }
 }
 
 const PsLine = z.object({ Service: z.string(), Name: z.string(), State: z.string(), Health: z.string().default(''), Status: z.string() })
