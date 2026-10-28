@@ -2,6 +2,7 @@ import { defineConfig } from 'dev-container'
 
 /** Paseo's daemon runs every agent inside this one caged container. */
 export default defineConfig({
+  envFile: ['.env', '.env.secret'],
   tailscale: { hostname: 'paseo' },
   services: {
     paseo: {

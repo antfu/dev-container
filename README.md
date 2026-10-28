@@ -17,27 +17,20 @@ It has no opinion about what runs inside: [Paseo](https://github.com/getpaseo/pa
 ## Quick start
 
 ```sh
-pnpm add -D dev-container
+npx dev-container setup
 ```
 
-```ts
-// dev-container.config.ts
-import { defineConfig, presets } from 'dev-container'
+`setup` asks for an image and the ports to publish, then writes:
 
-export default defineConfig({
-  secrets: [presets.github()],
-  services: {
-    agent: {
-      image: 'node:24',
-      command: ['sleep', 'infinity'],
-      volumes: ['./:/workspace'],
-    },
-  },
-})
-```
+- `dev-container.config.ts` with one idle `agent` service
+- `.env` for plain settings
+- `.env.secret` (mode `0600`), with `GH_TOKEN` filled from `gh auth token` when the gh CLI is logged in
+- `.gitignore` entries for `.env`, `.env.secret` and `.dev-container/`
+
+Run it again any time; it only fills gaps and never overwrites existing values. Without a terminal, or when an AI agent runs it, it takes the defaults (`node:24`, no ports) and doesn't prompt; `--yes` does the same.
 
 ```sh
-GH_TOKEN=$(gh auth token) npx dev-container up
+npx dev-container up
 npx dev-container compose exec agent bash
 # inside: $GH_TOKEN is a placeholder, yet `git push` and `gh` work
 ```
@@ -58,15 +51,19 @@ Caged services trust the broker's CA through environment variables only (`SSL_CE
 export default defineConfig({
   // Compose project name; defaults to the directory name.
   name: 'my-agents',
-  // Dotenv file consulted after the host environment.
-  envFile: 'secrets.env',
+  // Dotenv files consulted after the host environment; later files win.
+  envFile: ['.env', '.env.secret'],
   // Host address published ports bind to.
   bind: '127.0.0.1',
 
-  // Brokered: the cage only ever sees placeholders.
+  // github and npm are brokered automatically when their token is set.
+  builtins: {
+    npm: { from: { command: 'op read op://dev/npm/token' } }, // another source
+    // github: false, // turn one off
+  },
+
+  // More brokered secrets: the cage only ever sees placeholders.
   secrets: [
-    presets.github(), // GH_TOKEN / GITHUB_TOKEN, API + git over HTTPS
-    presets.npm({ from: { command: 'op read op://dev/npm/token' } }),
     { env: 'ACME_KEY', hosts: ['api.acme.dev', '*.acme.dev:8443'] },
   ],
 
@@ -95,6 +92,15 @@ export default defineConfig({
 })
 ```
 
+### Builtin secrets
+
+| Builtin | Detected from | Cage variables | Bound hosts |
+| --- | --- | --- | --- |
+| `github` | `GH_TOKEN`, then `GITHUB_TOKEN` | `GH_TOKEN`, `GITHUB_TOKEN`, plus a git credential helper | `api.github.com`, `uploads.github.com`, `github.com`, `codeload.github.com` |
+| `npm` | `NPM_TOKEN` | `NPM_TOKEN` | `registry.npmjs.org` |
+
+A builtin is on whenever its token is set in the shell or an `envFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
+
 ### Secrets: brokered or cage-visible
 
 | | `secrets` | service `env` reference |
@@ -103,7 +109,7 @@ export default defineConfig({
 | Sent to | only the bound `hosts` | wherever the process sends it |
 | Use for | tokens agents only pass along: GitHub, npm, internal APIs | values a process must hold itself: model API keys, OAuth logins, an orchestrator's own password |
 
-Both kinds come from the host: `{ env: 'NAME' }` (the host environment, then `envFile`) or `{ command: '…' }` (its trimmed stdout). A brokered secret defaults to `{ env: <its env name> }`. Every value is resolved before anything is written; a missing one fails the run and is named in the error. Resolved values go only to `0600` files in `.dev-container/env/`, never into `compose.yml`.
+Both kinds come from the host: `{ env: 'NAME' }` (the shell environment, then each `envFile`) or `{ command: '…' }` (its trimmed stdout). A brokered secret defaults to `{ env: <its env name> }`. Every value is resolved before anything is written; a missing one fails the run and is named in the error. Resolved values go only to `0600` files in `.dev-container/env/`, never into `compose.yml`.
 
 Agent CLIs use their tokens directly, so letting them hold those tokens costs nothing extra. Keep their logins across recreation with `persist`, e.g. `persist: ['/home/node/.claude']`.
 
@@ -122,6 +128,7 @@ The host directory starts empty and hides whatever the image had at that path. O
 ## CLI
 
 ```
+dev-container setup [--yes]            scaffold the config, .env, .env.secret and .gitignore entries
 dev-container generate                 write .dev-container/
 dev-container up [compose up flags]    generate, then docker compose up -d --build --remove-orphans
 dev-container compose <args...>        docker compose against the generated stack
@@ -129,6 +136,28 @@ dev-container serve [--host] [--port]  serve the control API
 ```
 
 `compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
+
+### Diagnostics
+
+Every failure is a [nostics](https://github.com/vercel-labs/nostics) diagnostic with a stable code, the reason, a fix, and a [docs page](./docs/errors):
+
+```
+[DEV_CONTAINER_S2001] secret ACME_KEY: $ACME_KEY is not set in the environment or any envFile.
+├▶ fix: Add `ACME_KEY=...` to .env.secret (or export it in the shell), or point the source at a `{ command }`.
+╰▶ see: https://github.com/antfu/dev-container/blob/main/docs/errors/DEV_CONTAINER_S2001.md
+```
+
+Config and secret problems are all reported in one run. With `--json` or `DEV_CONTAINER_JSON=1`, each diagnostic is one JSON object per line on stderr. That is also the default when an AI agent runs the CLI ([std-env](https://github.com/unjs/std-env) detects Claude Code, Codex, Cursor, opencode, pi and others).
+
+The broker answers blocked requests in the same format, with an `x-dev-container-diagnostic` header, so an agent inside the cage learns why a request failed and whether it can fix that itself or has to ask for a host-side change.
+
+### Agent skill
+
+```sh
+npx skills add antfu/dev-container
+```
+
+The skill teaches coding agents the repair loop (`generate --json`, apply each `fix`, repeat) and how to handle broker blocks from inside the cage.
 
 ### Bring your own compose
 
@@ -164,7 +193,7 @@ To mount the API in your own server instead, use `createControlApp({ dir, token 
 
 ## Using it with an orchestrator
 
-Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples):
+Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, run `npx dev-container setup` first: it keeps the example's config and creates the env files it reads.
 
 - [`paseo`](./examples/paseo): the Paseo daemon with Claude Code, Codex and opencode, served on the tailnet.
 - [`opencode`](./examples/opencode): `opencode serve` on `127.0.0.1:4096`.
