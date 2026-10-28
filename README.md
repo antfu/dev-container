@@ -44,7 +44,7 @@ npx dev-container compose exec agent bash
 
 ## How tokens stay out
 
-On every `up`, each brokered secret gets a fresh random placeholder such as `dc-GH_TOKEN-3f9c0a1b2c3d4e5f`. Caged services receive the placeholder under the secret's variable names. The broker gets the real value and a rules file. For each request, the broker:
+On every `up`, each brokered secret gets a fresh random placeholder such as `dc-GH_TOKEN-3f9c0a1b2c3d4e5f`. Caged services receive the placeholder under the secret's variable names. The broker gets the real values and the rules, inline in its environment, so every `up` recreates it in step with the cage. For each request, the broker:
 
 1. Finds placeholders in the request headers, including inside `Authorization: Basic`, which is how git sends credentials.
 2. Replaces each one with the real value only when the request is HTTPS and its real upstream host matches the secret's `hosts`. It checks the CONNECT target, not the `Host` header, which the client controls.
