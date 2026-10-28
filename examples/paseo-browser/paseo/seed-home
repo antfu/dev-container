@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# The persisted home hides whatever the image put there, so sync the config
+# baked into /etc/paseo-browser on every start, then hand over to Paseo.
+# Managed files and blocks are rewritten; anything agents add is kept.
+set -euo pipefail
+src=/etc/paseo-browser
+
+seed() {
+  install -D -m 644 "$src/AGENTS.md" "$CLAUDE_CONFIG_DIR/CLAUDE.md"
+  install -D -m 644 "$src/AGENTS.md" "$CODEX_HOME/AGENTS.md"
+
+  # Merge, so MCP servers added at runtime survive; Claude keeps its own state here too.
+  local claude="$CLAUDE_CONFIG_DIR/.claude.json" tmp
+  [[ -s $claude ]] || echo '{}' >"$claude"
+  tmp="$(mktemp "$claude.XXXXXX")"
+  jq --slurpfile m "$src/mcp.json" '.mcpServers = ((.mcpServers // {}) + $m[0])' "$claude" >"$tmp"
+  mv "$tmp" "$claude"
+
+  local codex="$CODEX_HOME/config.toml"
+  touch "$codex"
+  sed -i '/^# >>> paseo-browser managed/,/^# <<< paseo-browser managed/d' "$codex"
+  {
+    echo '# >>> paseo-browser managed (edit the image, not this block)'
+    cat "$src/codex.toml"
+    echo '# <<< paseo-browser managed'
+  } >>"$codex"
+}
+
+mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
+chown paseo:paseo "$HOME" "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
+export -f seed
+export src
+gosu paseo bash -c seed
+
+exec /usr/local/bin/paseo-docker-entrypoint "$@"

@@ -153,7 +153,7 @@ With `tailscale` configured, ports marked `tailnet: true` are also served as `ht
 
 Each `persist` path is bind-mounted from `.dev-container/state/<service>/<path>`. `dev-container` never deletes anything there; everything else in `.dev-container/` is regenerated on every run. The directory carries its own `.gitignore`.
 
-The host directory starts empty and hides whatever the image had at that path. On Linux it is owned by your user, so the container user needs the same uid; `node` and `paseo` images use `1000`.
+The host directory starts empty and hides whatever the image had at that path. On Linux it is owned by your user, so the container user needs the same uid; `node` and `paseo` images use `1000`. To ship config into a persisted home, bake it into the image elsewhere and sync it on start; [`paseo-browser`](./examples/paseo-browser) shows an entrypoint that overwrites managed files, merges JSON and rewrites a marked TOML block, keeping whatever agents add.
 
 ### Shared network
 
@@ -230,6 +230,7 @@ To mount the API in your own server instead, use `createControlApp({ dir, token 
 Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, run `npx dev-container setup` first: it keeps the example's config and creates the env files it reads.
 
 - [`paseo`](./examples/paseo): the Paseo daemon with Claude Code, Codex and opencode, served on the tailnet.
+- [`paseo-browser`](./examples/paseo-browser): Paseo plus a caged Chromium desktop you sign in to by hand, driven by agents over CDP. It also needs `BROWSER_PASSWORD` in `.env.secret`.
 - [`opencode`](./examples/opencode): `opencode serve` on `127.0.0.1:4096`.
 - [`pi`](./examples/pi): pi with an Anthropic subscription token.
 - [`claude`](./examples/claude): Claude Code as a shell agent, with an egress allowlist.

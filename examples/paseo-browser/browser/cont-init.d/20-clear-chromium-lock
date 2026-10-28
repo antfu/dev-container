@@ -1,0 +1,6 @@
+#!/bin/bash
+# Chromium refuses a profile whose SingletonLock names another host, and every
+# recreated container gets a new hostname. A container stopped while Chromium
+# runs leaves that lock behind, so Chromium would start without CDP. The image
+# only clears locks for its default profile, not our --user-data-dir.
+rm -f /config/chromium-cdp/Singleton*
