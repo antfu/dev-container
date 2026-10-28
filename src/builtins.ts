@@ -17,12 +17,13 @@ export const BUILTINS: Record<BuiltinName, Builtin> = {
       aliases: ['GITHUB_TOKEN'],
       hosts: ['api.github.com', 'uploads.github.com', 'github.com', 'codeload.github.com'],
       git: { host: 'github.com', username: 'x-access-token' },
+      rules: [],
     },
     detect: ['GH_TOKEN', 'GITHUB_TOKEN'],
   },
   // Reference it from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`.
   npm: {
-    secret: { env: 'NPM_TOKEN', aliases: [], hosts: ['registry.npmjs.org'] },
+    secret: { env: 'NPM_TOKEN', aliases: [], hosts: ['registry.npmjs.org'], rules: [] },
     detect: ['NPM_TOKEN'],
   },
 }

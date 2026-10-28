@@ -1,0 +1,10 @@
+#!/bin/bash
+# Chromium ignores SSL_CERT_FILE and trusts only its NSS database. Re-import on
+# every start, since the CA changes whenever the broker-ca volume is recreated.
+set -eu
+db=/config/.pki/nssdb
+mkdir -p "$db"
+[ -f "$db/cert9.db" ] || certutil -d "sql:$db" -N --empty-password
+certutil -d "sql:$db" -D -n dev-container 2>/dev/null || true
+certutil -d "sql:$db" -A -t C,, -n dev-container -i /etc/dev-container/ca/mitmproxy-ca-cert.pem
+chown -R "${PUID:-1000}:${PGID:-1000}" /config/.pki

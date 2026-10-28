@@ -18,6 +18,19 @@ const SecretSource = z.union([
   z.strictObject({ command: z.string().min(1) }),
 ])
 
+const Method = z.string().regex(/^[a-z]+$/i, 'must be an HTTP method').transform(method => method.toUpperCase())
+
+/** One request rule for a brokered secret; omitted fields match anything. */
+const RequestRule = z.strictObject({
+  action: z.enum(['allow', 'deny']),
+  method: z.union([Method, z.array(Method).min(1)]).transform(method => typeof method === 'string' ? [method] : method).optional(),
+  /** `*` matches within one segment, a `**` segment matches any number of them. */
+  path: z.string().regex(/^\/[^?#]*$/, 'must start with `/` and have no query or fragment').optional(),
+})
+
+/** Checked in order whenever the secret is sent; the first match wins, and a request no rule matches is allowed. */
+const RequestRules = z.array(RequestRule).default([])
+
 const Secret = z.strictObject({
   /** Variable that holds the placeholder inside the cage. */
   env: EnvName,
@@ -29,6 +42,7 @@ const Secret = z.strictObject({
   from: SecretSource.optional(),
   /** Configure a git credential helper that answers with the placeholder. */
   git: z.strictObject({ host: z.string(), username: z.string() }).optional(),
+  rules: RequestRules,
 })
 
 const PortRange = z.union([
@@ -54,6 +68,8 @@ const Service = z.strictObject({
   env: z.record(EnvName, z.union([z.string(), SecretSource])).default({}),
   ports: z.array(Port).default([]),
   volumes: z.array(z.string().refine(volume => !RESERVED_VOLUMES.has(volume.split(':')[0] ?? ''), 'uses a volume name reserved by dev-container')).default([]),
+  /** `service:<name>` joins another caged service's network namespace, so both share `localhost`. */
+  network: z.string().regex(/^service:[a-z0-9][\w-]*$/, 'must be `service:<name>`').optional(),
   /** Container paths persisted to `.dev-container/state/<service>/`. */
   persist: z.array(z.string().startsWith('/')).default([]),
   /** Inject the control server URL and token. */
@@ -62,7 +78,7 @@ const Service = z.strictObject({
   compose: z.record(z.string(), z.json()).optional(),
 }).refine(service => service.image || service.build, 'requires `image` or `build`')
 
-const Builtin = z.union([z.literal(false), z.strictObject({ from: SecretSource })])
+const Builtin = z.union([z.literal(false), z.strictObject({ from: SecretSource.optional(), rules: RequestRules })])
 
 const Egress = z.discriminatedUnion('policy', [
   z.strictObject({ policy: z.literal('open') }),
@@ -76,7 +92,7 @@ const Config = z.strictObject({
   envFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).default([]),
   /** Host address published ports bind to. */
   bind: z.string().default('127.0.0.1'),
-  /** `github` and `npm` are brokered automatically when their token is set; `false` turns one off, `{ from }` overrides its source. */
+  /** `github` and `npm` are brokered automatically when their token is set; `false` turns one off, `from` overrides its source, `rules` limits its requests. */
   builtins: z.strictObject({ github: Builtin.optional(), npm: Builtin.optional() } satisfies Record<BuiltinName, z.ZodType>).default({}),
   secrets: z.array(Secret).default([]),
   egress: Egress.default({ policy: 'open' }),

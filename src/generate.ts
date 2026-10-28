@@ -81,13 +81,10 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
     const { secret, detect } = BUILTINS[builtin]
     if (setting === false)
       continue
-    if (setting) {
-      claimed.push({ builtin, secret: { ...secret, from: setting.from } })
-      continue
-    }
     const found = detect.find(name => lookupEnv(lookup, name))
-    if (found)
-      claimed.push({ builtin, secret: { ...secret, from: { env: found } } })
+    const from = setting?.from ?? (found && { env: found })
+    if (from)
+      claimed.push({ builtin, secret: { ...secret, from, rules: setting?.rules ?? secret.rules } })
     else
       warnings.push(diagnostics.DEV_CONTAINER_S2002({ builtin, envs: detect }))
   }

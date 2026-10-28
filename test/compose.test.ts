@@ -53,6 +53,7 @@ describe('buildStack', () => {
             ],
             "name": "GH_TOKEN",
             "placeholder": "dc-GH_TOKEN-0000000000000000",
+            "rules": [],
           },
           {
             "hosts": [
@@ -60,6 +61,7 @@ describe('buildStack', () => {
             ],
             "name": "ACME_KEY",
             "placeholder": "dc-ACME_KEY-1111111111111111",
+            "rules": [],
           },
         ],
       }
@@ -96,6 +98,33 @@ describe('buildStack', () => {
     expect(compose.services.agent!.networks).toEqual(['caged'])
   })
 
+  it('passes request rules to the broker in order', () => {
+    const { rules } = build({
+      secrets: [{
+        env: 'ACME_KEY',
+        hosts: ['api.acme.dev'],
+        rules: [{ action: 'allow', method: ['get', 'HEAD'], path: '/v1/**' }, { action: 'deny' }],
+      }],
+      services: { agent: { image: 'alpine' } },
+    })
+    expect(rules.secrets[0]!.rules).toEqual([{ action: 'allow', methods: ['GET', 'HEAD'], path: '/v1/**' }, { action: 'deny' }])
+  })
+
+  it('lets a service share another one\'s network, with its ports reached through the owner', () => {
+    const { compose, tailscaleServe } = build({
+      tailscale: { hostname: 'agents' },
+      services: {
+        browser: { image: 'chromium', ports: [6901] },
+        agent: { image: 'paseo', network: 'service:browser', ports: [{ port: 6767, tailnet: true }] },
+      },
+    })
+    expect(compose.services.agent!.network_mode).toBe('service:browser')
+    expect(compose.services.agent!.networks).toBeUndefined()
+    expect(compose.services.browser!.networks).toEqual(['caged'])
+    expect(compose.services.relay!.command).toEqual(['browser:6901', 'browser:6767'])
+    expect(Object.values(tailscaleServe!.Web).map(web => web.Handlers['/']!.Proxy)).toEqual(['http://browser:6767'])
+  })
+
   it('brackets an IPv6 bind address', () => {
     const { compose } = build({ bind: '::1', services: { agent: { image: 'alpine', ports: [3000] } } })
     expect(compose.services.relay!.ports).toEqual(['[::1]:3000:3000'])
@@ -123,6 +152,9 @@ describe('buildStack', () => {
     ['a tailnet range', 'N3004', { tailscale: { hostname: 'h' }, services: { a: { image: 'x', ports: [{ port: '3000-3001', tailnet: true }] } } }],
     ['tailnet without tailscale', 'N3005', { services: { a: { image: 'x', ports: [{ port: 3000, tailnet: true }] } } }],
     ['colliding persist paths', 'N3006', { services: { a: { image: 'x', persist: ['/a/b-c', '/a/b/c'] } } }],
+    ['a network of an unknown service', 'N3007', { services: { a: { image: 'x', network: 'service:broker' } } }],
+    ['a network of itself', 'N3007', { services: { a: { image: 'x', network: 'service:a' } } }],
+    ['a chained network', 'N3007', { services: { a: { image: 'x' }, b: { image: 'x', network: 'service:a' }, c: { image: 'x', network: 'service:b' } } }],
   ])('rejects %s', (_, code, config) => {
     expect(() => build(config)).toThrow(expect.objectContaining({ name: `DEV_CONTAINER_${code}` }))
   })
@@ -136,6 +168,9 @@ describe('resolveConfig', () => {
     ['a malformed host pattern', 'secrets.0.hosts.0', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
     ['a relative persist path', 'services.a.persist.0', { services: { a: { image: 'x', persist: ['home'] } } }],
     ['a reserved volume name', 'services.a.volumes.0', { services: { a: { image: 'x', volumes: ['broker-ca:/stolen'] } } }],
+    ['a network that is not a service', 'services.a.network', { services: { a: { image: 'x', network: 'host' } } }],
+    ['a rule path with a query', 'secrets.0.rules.0.path', { secrets: [{ env: 'X', hosts: ['x.dev'], rules: [{ action: 'deny', path: '/a?b=1' }] }], services: { a: { image: 'x' } } }],
+    ['a rule with a bad method', 'secrets.0.rules.0.method', { secrets: [{ env: 'X', hosts: ['x.dev'], rules: [{ action: 'deny', method: 'GET /' }] }], services: { a: { image: 'x' } } }],
   ])('rejects %s', (_, path, config) => {
     expect(() => resolveConfig(config, '/work/dev-container.config.ts')).toThrow(expect.objectContaining({
       errors: [expect.objectContaining({ name: 'DEV_CONTAINER_C1002', data: { path }, sources: ['/work/dev-container.config.ts'] })],

@@ -1,7 +1,7 @@
 import base64
 import unittest
 
-from rules import Rules, allowed, decide, host_matches
+from rules import Rules, allowed, decide, host_matches, path_matches, request_path
 
 GH = "dc-GH_TOKEN-0123456789abcdef"
 ACME = "dc-ACME_KEY-fedcba9876543210"
@@ -25,8 +25,8 @@ def basic(user, password):
     return "Basic " + base64.b64encode(("%s:%s" % (user, password)).encode()).decode()
 
 
-def request(host, headers, scheme="https", port=443, url=None, policy="open", allow=()):
-    return decide(rules(policy, allow), scheme, host, port, url or "%s://%s/" % (scheme, host), headers)
+def request(host, headers, scheme="https", port=443, url=None, policy="open", allow=(), method="GET"):
+    return decide(rules(policy, allow), scheme, host, port, method, url or "%s://%s/" % (scheme, host), headers)
 
 
 class HostMatching(unittest.TestCase):
@@ -93,8 +93,67 @@ class Blocking(unittest.TestCase):
 
     def test_missing_value(self):
         r = Rules.from_json({"policy": "open", "allow": [], "secrets": [{"name": "X", "placeholder": GH, "hosts": ["x.dev"]}]}, {})
-        d = decide(r, "https", "x.dev", 443, "https://x.dev/", [("Authorization", GH)])
+        d = decide(r, "https", "x.dev", 443, "GET", "https://x.dev/", [("Authorization", GH)])
         self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5006")
+
+
+class PathMatching(unittest.TestCase):
+    def test_single_segment_star(self):
+        self.assertTrue(path_matches("/users/*/messages/send", "/users/me/messages/send"))
+        self.assertFalse(path_matches("/users/*/messages/send", "/users/a/b/messages/send"))
+        self.assertTrue(path_matches("/v1/*.json", "/v1/a.json"))
+
+    def test_double_star_spans_segments_and_its_parent(self):
+        self.assertTrue(path_matches("/repos/**", "/repos"))
+        self.assertTrue(path_matches("/repos/**", "/repos/a/b/c"))
+        self.assertFalse(path_matches("/repos/**", "/reposx"))
+        self.assertTrue(path_matches("/a/**/z", "/a/z"))
+        self.assertTrue(path_matches("/a/**/z", "/a/b/c/z"))
+        self.assertTrue(path_matches("/**", "/"))
+
+    def test_case_insensitive(self):
+        self.assertTrue(path_matches("/repos/antfu/**", "/REPOS/Antfu/x"))
+
+    def test_request_path_is_normalized(self):
+        self.assertEqual(request_path("https://x.dev//a/./b/../c?q=/d"), "/a/c")
+        self.assertEqual(request_path("https://x.dev/a%2Fb/%2e%2e/c"), "/a/c")
+        self.assertEqual(request_path("https://x.dev"), "/")
+
+
+def ruled(rules_, method, url, headers=None):
+    r = Rules.from_json(
+        {"policy": "open", "allow": [], "secrets": [{"name": "GH_TOKEN", "placeholder": GH, "hosts": ["api.github.com"], "rules": rules_}]},
+        {"DEV_CONTAINER_SECRET_GH_TOKEN": "ghp_real"},
+    )
+    return decide(r, "https", "api.github.com", 443, method, url, [("Authorization", "Bearer " + GH)] if headers is None else headers)
+
+
+class RequestRules(unittest.TestCase):
+    ONLY_ONE_REPO = [
+        {"action": "allow", "methods": ["GET"], "path": "/repos/antfu/**"},
+        {"action": "allow", "path": "/repos/antfu/dev-container/**"},
+        {"action": "deny"},
+    ]
+
+    def test_first_match_wins(self):
+        self.assertEqual(ruled(self.ONLY_ONE_REPO, "GET", "https://api.github.com/repos/antfu/other").injected, ["GH_TOKEN"])
+        self.assertEqual(ruled(self.ONLY_ONE_REPO, "POST", "https://api.github.com/repos/antfu/dev-container/issues").injected, ["GH_TOKEN"])
+        d = ruled(self.ONLY_ONE_REPO, "post", "https://api.github.com/repos/antfu/other/issues")
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5007")
+        self.assertIn("rule `deny * /**`", d.blocked.why)
+
+    def test_unmatched_requests_are_allowed(self):
+        deny_send = [{"action": "deny", "methods": ["POST"], "path": "/users/*/messages/send"}]
+        self.assertIsNone(ruled(deny_send, "GET", "https://api.github.com/users/me/messages/send").blocked)
+        self.assertIsNone(ruled([], "DELETE", "https://api.github.com/anything").blocked)
+
+    def test_encoded_and_dotted_paths_cannot_slip_past(self):
+        deny = [{"action": "deny", "path": "/repos/**"}]
+        for url in ("https://api.github.com/x/../repos/a", "https://api.github.com/%72epos/a", "https://api.github.com//repos/a"):
+            self.assertEqual(ruled(deny, "GET", url).blocked.code, "DEV_CONTAINER_B5007", url)
+
+    def test_rules_apply_only_when_the_secret_is_sent(self):
+        self.assertIsNone(ruled([{"action": "deny"}], "GET", "https://api.github.com/", headers=[]).blocked)
 
 
 class Rendering(unittest.TestCase):
