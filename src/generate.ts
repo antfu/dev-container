@@ -54,7 +54,7 @@ export function generate({ config, root, env = process.env }: GenerateOptions): 
 }
 
 /** Reads the control token, creating it on first use. It stays stable across runs. */
-function readControlToken(dir: string): string {
+export function readControlToken(dir: string): string {
   const path = join(dir, 'control-token')
   if (existsSync(path))
     return readFileSync(path, 'utf8').trim()
