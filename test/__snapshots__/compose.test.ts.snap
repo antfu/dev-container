@@ -19,6 +19,8 @@ services:
       - ca:/etc/dev-container/ca
     extra_hosts:
       - host.docker.internal:host-gateway
+    sysctls:
+      net.ipv4.ip_forward: "0"
     healthcheck:
       test:
         - CMD
@@ -81,6 +83,8 @@ services:
     networks:
       - caged
       - egress
+    sysctls:
+      net.ipv4.ip_forward: "0"
     ports:
       - 127.0.0.1:6767:6767
       - 127.0.0.1:5170-5172:5170-5172
@@ -90,6 +94,8 @@ services:
     networks:
       - caged
       - egress
+    sysctls:
+      net.ipv4.ip_forward: "0"
     env_file:
       - path: /work/my-project/.dev-container/env/tailscale.env
         required: true
@@ -114,11 +120,19 @@ volumes:
 "
 `;
 
+exports[`buildStack > rejects a port above 65535 1`] = `[Error: Invalid port range 99999 on service a]`;
+
 exports[`buildStack > rejects a reversed range 1`] = `[Error: Invalid port range 3002-3000 on service a]`;
 
 exports[`buildStack > rejects a tailnet range 1`] = `[Error: Port ranges cannot be served on the tailnet (3000-3001 on service a)]`;
 
+exports[`buildStack > rejects an oversized range 1`] = `[Error: Port range 1-65535 on service a exceeds 100 ports]`;
+
+exports[`buildStack > rejects colliding persist paths 1`] = `[Error: Persist paths of service a map to the same state directory: /a/b-c, /a/b/c]`;
+
 exports[`buildStack > rejects overlapping ports 1`] = `[Error: Port 3001 is published by both a and b]`;
+
+exports[`buildStack > rejects port 0 1`] = `[Error: Invalid port range 0 on service a]`;
 
 exports[`buildStack > rejects tailnet without tailscale 1`] = `[Error: Port 3000 on service a sets \`tailnet\` but \`tailscale\` is not configured]`;
 
@@ -138,6 +152,12 @@ exports[`resolveConfig > rejects a reserved service name 1`] = `
 [Error: Invalid dev-container config:
 ✖ service names broker, relay, tailscale are reserved
   → at services]
+`;
+
+exports[`resolveConfig > rejects a reserved volume name 1`] = `
+[Error: Invalid dev-container config:
+✖ uses a volume name reserved by dev-container
+  → at services.a.volumes[0]]
 `;
 
 exports[`resolveConfig > rejects a service without image or build 1`] = `

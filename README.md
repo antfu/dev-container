@@ -117,6 +117,8 @@ With `tailscale` configured, ports marked `tailnet: true` are also served as `ht
 
 Each `persist` path is bind-mounted from `.dev-container/state/<service>/<path>`. `dev-container` never deletes anything there; everything else in `.dev-container/` is regenerated on every run. The directory carries its own `.gitignore`.
 
+The host directory starts empty and hides whatever the image had at that path. On Linux it is owned by your user, so the container user needs the same uid; `node` and `paseo` images use `1000`.
+
 ## CLI
 
 ```
@@ -173,9 +175,10 @@ Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `
 
 ## Limitations
 
-- **Open egress is the default.** It stops tokens from leaving, not data. A caged process can still send anything it can read, including cage-visible secrets, to any host. Use `egress: { policy: 'allowlist' }` to narrow that.
-- **Only request headers are rewritten.** Secrets in request bodies or query strings are not brokered.
-- **Clients must honour `HTTPS_PROXY`.** Anything else simply has no network.
+- **Open egress is the default.** It stops tokens from leaving, not data. A caged process can still send anything it can read, including cage-visible secrets, to any host. With `egress: { policy: 'allowlist' }` the broker also refuses CONNECT tunnels to unlisted hosts, so raw TCP is held to the list too.
+- **Only request headers are rewritten, and responses are passed through as they are.** Secrets in request bodies or query strings are not brokered. An endpoint that echoes request headers back, such as a debugging echo service, hands the real value to the cage.
+- **Clients must honour `HTTPS_PROXY`.** Anything else has no route out. Docker's embedded DNS can still resolve external names from the cage, which is a narrow side channel.
+- **Placeholders change on every run.** Tools must read tokens from the environment. A token copied into a file inside the cage, such as a hand-written `.npmrc` value, goes stale on the next `up` and is refused.
 - **OAuth logins are not brokered.** Subscription logins such as Claude Code's `.credentials.json` or Codex's `auth.json` live in the cage, refresh themselves, and persist with `persist`.
 - **Orchestrators that start their own containers are not supported.** That needs the Docker socket, which would undo the cage.
 

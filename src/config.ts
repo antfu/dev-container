@@ -4,6 +4,7 @@ import { createConfigLoader } from 'unconfig'
 import { z } from 'zod'
 
 const RESERVED_SERVICES = ['broker', 'relay', 'tailscale']
+const RESERVED_VOLUMES = new Set(['ca', 'broker-ca'])
 
 const EnvName = z.string().regex(/^[A-Z_]\w*$/i, 'must be a valid environment variable name')
 
@@ -50,7 +51,7 @@ const Service = z.strictObject({
   /** Plain values, or secret references that are deliberately visible inside the cage. */
   env: z.record(EnvName, z.union([z.string(), SecretSource])).default({}),
   ports: z.array(Port).default([]),
-  volumes: z.array(z.string()).default([]),
+  volumes: z.array(z.string().refine(volume => !RESERVED_VOLUMES.has(volume.split(':')[0] ?? ''), 'uses a volume name reserved by dev-container')).default([]),
   /** Container paths persisted to `.dev-container/state/<service>/`. */
   persist: z.array(z.string().startsWith('/')).default([]),
   /** Inject the control server URL and token. */

@@ -119,6 +119,9 @@ export function createControlApp({ dir, token, docker = 'docker' }: ControlOptio
         if (data !== undefined)
           void stream.writeSSE({ event, data })
       })
+      child.on('error', (error) => {
+        void stream.writeSSE({ event: 'error', data: error.message }).then(resolve)
+      })
       child.on('close', () => resolve())
     })
   }
@@ -148,14 +151,16 @@ export function createControlApp({ dir, token, docker = 'docker' }: ControlOptio
       const json = line.match(/\{.*\}/)?.[0]
       return json ? parseStats(json, byContainer) : undefined
     }
-    if (c.req.valid('query').stream === '1') {
+    const stream = c.req.valid('query').stream === '1'
+    // Without container names `docker stats` would report every container on the host.
+    if (!services.length)
+      return stream ? streamSSE(c, async () => {}) : c.json({ stats: [] }, 200)
+    if (stream) {
       return streamSSE(c, stream => streamLines(stream, args, 'stats', (line) => {
         const stats = toStats(line)
         return stats && JSON.stringify(stats)
       }))
     }
-    if (!services.length)
-      return c.json({ stats: [] }, 200)
     const { stdout } = await run(docker, ['stats', '--no-stream', ...args.slice(1)])
     return c.json({ stats: stdout.split('\n').map(toStats).filter(s => s !== undefined) }, 200)
   })
@@ -222,8 +227,18 @@ const StatsLine = z.object({
   PIDs: z.string(),
 })
 
+/** Skips lines `docker stats` garbles while redrawing rather than failing the stream. */
 function parseStats(json: string, byContainer: Map<string, string>): z.infer<typeof Stats> | undefined {
-  const stats = StatsLine.parse(JSON.parse(json))
+  let parsed
+  try {
+    parsed = StatsLine.safeParse(JSON.parse(json))
+  }
+  catch {
+    return undefined
+  }
+  if (!parsed.success)
+    return undefined
+  const stats = parsed.data
   const service = byContainer.get(stats.Name)
   if (!service)
     return undefined

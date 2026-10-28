@@ -8,6 +8,9 @@ const PROXY = 'http://broker:8080'
 const CA_DIR = '/etc/dev-container/ca'
 const CA_CERT = `${CA_DIR}/mitmproxy-ca-cert.pem`
 const CONTROL_HOST = 'host.docker.internal'
+const MAX_RANGE = 100
+/** A dual-homed sidecar must never route packets from the cage to the outside. */
+const NO_FORWARDING = { 'net.ipv4.ip_forward': '0' }
 
 interface ComposeService {
   [key: string]: JsonValue | undefined
@@ -21,6 +24,7 @@ interface ComposeService {
   volumes?: string[]
   depends_on?: Record<string, { condition: string }>
   extra_hosts?: string[]
+  sysctls?: Record<string, string>
   healthcheck?: { test: string[], interval: string, timeout: string, retries: number }
   restart: string
 }
@@ -107,6 +111,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
         `ca:${CA_DIR}`,
       ],
       ...usesControl && { extra_hosts: [`${CONTROL_HOST}:host-gateway`] },
+      sysctls: NO_FORWARDING,
       healthcheck: {
         test: ['CMD', 'python3', '-c', `import os,socket;assert os.path.exists('${CA_CERT}');socket.create_connection(('127.0.0.1',8080),2)`],
         interval: '2s',
@@ -119,6 +124,8 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
 
   for (const [name, service] of Object.entries(config.services)) {
     const dirs = service.persist.map(path => join(ctx.dir, 'state', name, slugify(path)))
+    if (new Set(dirs).size !== dirs.length)
+      throw new Error(`Persist paths of service ${name} map to the same state directory: ${service.persist.join(', ')}`)
     persistDirs.push(...dirs)
     services[name] = cagedService(config, ctx, name, service, environment, dirs)
   }
@@ -128,7 +135,8 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       build: { context: join(ctx.assets, 'relay') },
       command: ports.map(p => `${p.service}:${formatRange(p)}`),
       networks: ['caged', 'egress'],
-      ports: ports.map(p => `${config.bind}:${formatRange(p)}:${formatRange(p)}`),
+      sysctls: NO_FORWARDING,
+      ports: ports.map(p => `${config.bind.includes(':') ? `[${config.bind}]` : config.bind}:${formatRange(p)}:${formatRange(p)}`),
       restart: 'unless-stopped',
     }
   }
@@ -146,6 +154,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
     services.tailscale = {
       image: TAILSCALE_IMAGE,
       networks: ['caged', 'egress'],
+      sysctls: NO_FORWARDING,
       env_file: [{ path: envFilePath(ctx.dir, 'tailscale'), required: true }],
       environment: {
         TS_HOSTNAME: config.tailscale.hostname,
@@ -243,12 +252,12 @@ function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<stri
     for (const env of [secret.env, ...secret.aliases])
       environment[env] = placeholderOf(ctx, secret.env)
   }
-  const gitSecrets = config.secrets.filter(secret => secret.git)
-  if (gitSecrets.length)
-    environment.GIT_CONFIG_COUNT = String(gitSecrets.length)
-  gitSecrets.forEach(({ env, git }, i) => {
-    environment[`GIT_CONFIG_KEY_${i}`] = `credential.https://${git!.host}.helper`
-    environment[`GIT_CONFIG_VALUE_${i}`] = `!f() { test "$1" = get && printf 'username=${git!.username}\\npassword=%s\\n' "$${env}"; }; f`
+  const gitHelpers = config.secrets.flatMap(({ env, git }) => git ? [{ env, ...git }] : [])
+  if (gitHelpers.length)
+    environment.GIT_CONFIG_COUNT = String(gitHelpers.length)
+  gitHelpers.forEach(({ env, host, username }, i) => {
+    environment[`GIT_CONFIG_KEY_${i}`] = `credential.https://${host}.helper`
+    environment[`GIT_CONFIG_VALUE_${i}`] = `!f() { test "$1" = get && printf 'username=${username}\\npassword=%s\\n' "$${env}"; }; f`
   })
   return environment
 }
@@ -276,10 +285,13 @@ function collectPorts(config: ResolvedConfig): PublishedPort[] {
 }
 
 function parsePort(service: string, port: string, tailnet: boolean, hasTailscale: boolean): PublishedPort {
-  const [start, end] = port.split('-').map(Number)
-  const parsed = { service, start: start!, end: end ?? start!, tailnet }
-  if (parsed.end < parsed.start)
+  const [start = 0, end = start] = port.split('-').map(Number)
+  const parsed = { service, start, end, tailnet }
+  if (start < 1 || end > 65535 || end < start)
     throw new Error(`Invalid port range ${port} on service ${service}`)
+  // The relay runs one forwarder per port.
+  if (end - start >= MAX_RANGE)
+    throw new Error(`Port range ${port} on service ${service} exceeds ${MAX_RANGE} ports`)
   if (tailnet && parsed.end !== parsed.start)
     throw new Error(`Port ranges cannot be served on the tailnet (${port} on service ${service})`)
   if (tailnet && !hasTailscale)
@@ -293,10 +305,11 @@ function formatRange({ start, end }: PublishedPort): string {
 
 function resolveVolume(root: string, volume: string): string {
   const [source = '', ...rest] = volume.split(':')
-  if (!/^[.~/]/.test(source))
-    return volume
-  const path = source.startsWith('~') ? join(homedir(), source.slice(1)) : resolve(root, source)
-  return [isAbsolute(path) ? path : resolve(path), ...rest].join(':')
+  if (source === '~' || source.startsWith('~/'))
+    return [join(homedir(), source.slice(1)), ...rest].join(':')
+  if (source.startsWith('.') || isAbsolute(source))
+    return [resolve(root, source), ...rest].join(':')
+  return volume
 }
 
 /** Named volumes used by services must be declared at the top level. */
