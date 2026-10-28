@@ -32,6 +32,19 @@ export interface ControlOptions {
   dir: string;
   token: string;
   docker?: string;
+  upgrade?: () => Promise<'up-to-date' | 'deployed'>;
+}
+export interface Daemon {
+  server: ServerType;
+  close: () => void;
+}
+export interface DaemonOptions {
+  config: ResolvedConfig;
+  root: string;
+  host?: string;
+  port?: number;
+  onWarnings?: (_: Diagnostic<unknown>[]) => void;
+  onUpgraded?: () => void;
 }
 export interface Generated {
   dir: string;
@@ -66,9 +79,13 @@ export type UserConfig = z.input<typeof Config>;
 // #region Functions
 export declare function buildStack(_: ResolvedConfig, _: StackContext): Stack;
 export declare function compose(_: string[], { dir, docker }: ComposeOptions): Promise<number>;
-export declare function createControlApp({ dir, token, docker }: ControlOptions): OpenAPIHono;
+export declare function createControlApp({ dir, token, docker, upgrade }: ControlOptions): OpenAPIHono;
 export declare function defineConfig(_: UserConfig): UserConfig;
 export declare function generate({ config: userConfig, root, env }: GenerateOptions): Generated;
+export declare function installDaemon({ root, name }: {
+  root: string;
+  name: string;
+}): string;
 export declare function loadConfig(_?: any): Promise<{
   config: ResolvedConfig;
   root: string;
@@ -76,8 +93,10 @@ export declare function loadConfig(_?: any): Promise<{
 }>;
 export declare function readControlToken(_: string): string;
 export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
+export declare function runDaemon({ config, root, host, port, onWarnings, onUpgraded }: DaemonOptions): Daemon;
 export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
 export declare function setup({ root, image, ports }: SetupOptions): SetupResult;
+export declare function uninstallDaemon(_: string): void;
 export declare function up(_: GenerateOptions & {
   args?: string[];
   docker?: string;

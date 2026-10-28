@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import type { ResolvedConfig } from './index'
 import { basename, join } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { cancel, intro, isCancel, text } from '@clack/prompts'
-import { compose, generate, loadConfig, readControlToken, serveControl, setup, up } from './index'
+import { compose, generate, installDaemon, loadConfig, readControlToken, runDaemon, serveControl, setup, uninstallDaemon, up } from './index'
 import { report, reportError, wantsJson } from './report'
-import { installAutosync, sync, uninstallAutosync } from './sync'
+import { sync } from './sync'
 
 const HELP = `Usage: dev-container <command>
 
@@ -61,16 +62,8 @@ async function main(argv: string[], json: boolean): Promise<number> {
       process.stdout.write(result === 'deployed' ? 'Deployed.\n' : 'Up to date.\n')
       return 0
     }
-    case 'autosync': {
-      const name = config.name ?? basename(root)
-      if (rest[0] === 'install')
-        process.stdout.write(`Installed ${installAutosync({ config, root, name })}, syncing every ${config.sync.interval}s\n`)
-      else if (rest[0] === 'uninstall')
-        uninstallAutosync(name)
-      else
-        throw new Error('Usage: dev-container autosync install|uninstall')
-      return 0
-    }
+    case 'daemon':
+      return runDaemonCommand(rest, { config, root, json })
     default:
       process.stderr.write(`Unknown command: ${command}\n\n${HELP}`)
       return 1
@@ -81,6 +74,27 @@ async function main(argv: string[], json: boolean): Promise<number> {
 const args = process.argv.slice(2)
 const end = args[0] === 'compose' ? 1 : args.length
 const json = wantsJson(args.slice(0, end).includes('--json'))
+async function runDaemonCommand(args: string[], { config, root, json }: { config: ResolvedConfig, root: string, json: boolean }): Promise<number> {
+  const name = config.name ?? basename(root)
+  const [action, ...rest] = args
+  if (action === 'install') {
+    process.stdout.write(`Installed ${installDaemon({ root, name })}\n`)
+    return 0
+  }
+  if (action === 'uninstall') {
+    uninstallDaemon(name)
+    return 0
+  }
+  if (action !== 'run')
+    throw new Error('Usage: dev-container daemon run|install|uninstall')
+  const { values } = parseArgs({ args: rest, options: { host: { type: 'string' }, port: { type: 'string' } } })
+  const port = values.port ? Number(values.port) : config.control.port
+  const host = values.host ?? config.control.host
+  runDaemon({ config, root, host, port, onWarnings: warnings => report(warnings, 'warning', json) })
+  process.stdout.write(`Daemon on http://${host}:${port}${config.sync.autoUpgrade ? `, upgrading every ${config.sync.interval}s` : ''}\n`)
+  return new Promise(() => {})
+}
+
 const PORTS = /^\s*(?:\d+(?:-\d+)?\s*(?:,\s*|$))*$/
 
 async function runSetup(args: string[], json: boolean): Promise<number> {

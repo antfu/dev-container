@@ -38,6 +38,18 @@ async function waitForExit(pid: number) {
 }
 
 describe('control API', () => {
+  it('runs the daemon\'s upgrade, and refuses without one', async () => {
+    const upgrade = vi.fn(async () => 'deployed' as const)
+    const withDaemon = createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, upgrade })
+    const response = await withDaemon.request('/upgrade', { method: 'POST', ...auth })
+    expect(await response.json()).toEqual({ ok: true, result: 'deployed' })
+    expect(upgrade).toHaveBeenCalledOnce()
+
+    const refused = await app().request('/upgrade', { method: 'POST', ...auth })
+    expect(refused.status).toBe(400)
+    expect(await refused.json()).toMatchObject({ name: 'DEV_CONTAINER_D4004' })
+  })
+
   it('rejects requests without the token', async () => {
     const response = await app().request('/services')
     expect(response.status).toBe(401)
@@ -164,7 +176,7 @@ describe('control API', () => {
   it('serves its OpenAPI document', async () => {
     const doc = z.object({ paths: z.record(z.string(), z.object({})), components: z.object({ securitySchemes: z.object({}).loose() }) })
       .parse(await (await app().request('/openapi.json', auth)).json())
-    expect(Object.keys(doc.paths)).toEqual(['/services', '/stats', '/services/{name}/logs', '/restart', '/services/{name}/restart', '/update', '/services/{name}/update', '/services/{name}/gpg', '/services/{name}/gpg/public'])
+    expect(Object.keys(doc.paths)).toEqual(['/services', '/stats', '/services/{name}/logs', '/restart', '/services/{name}/restart', '/update', '/upgrade', '/services/{name}/update', '/services/{name}/gpg', '/services/{name}/gpg/public'])
     expect(doc.components.securitySchemes).toEqual({ bearer: { type: 'http', scheme: 'bearer' } })
   })
 })

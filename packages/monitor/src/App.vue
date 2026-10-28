@@ -73,6 +73,9 @@ onBeforeUnmount(() => clearInterval(timer))
         dev-container monitor
       </h1>
       <span v-if="busy" class="text-sm text-muted">{{ busy }}</span>
+      <button class="btn" :disabled="!!busy" title="Pull the git checkout, rebuild the images and restart; the daemon restarts itself" @click="act('Upgrading', '/upgrade')">
+        Upgrade
+      </button>
       <button class="btn" :disabled="!!busy" @click="act('Updating all', '/update')">
         Update all
       </button>

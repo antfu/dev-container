@@ -31,6 +31,8 @@ export interface ControlOptions {
   token: string
   /** Docker CLI binary. Defaults to `docker`. */
   docker?: string
+  /** Pulls the checkout and redeploys; set by the daemon. Without it `POST /upgrade` is refused. */
+  upgrade?: () => Promise<'up-to-date' | 'deployed'>
 }
 
 const ServiceName = z.string().regex(/^[a-z0-9][\w-]*$/).openapi({ param: { name: 'name', in: 'path' }, example: 'agent' })
@@ -129,6 +131,15 @@ const routes = {
     summary: 'Pull base images, rebuild and recreate every service',
     responses: { 200: { description: 'Updated', content: ok }, ...errors },
   }),
+  upgrade: createRoute({
+    method: 'post',
+    path: '/upgrade',
+    summary: 'Pull the git checkout, rebuild the images and restart; the daemon then restarts itself on the new code',
+    responses: {
+      200: { description: 'Result of the upgrade', content: { 'application/json': { schema: z.object({ ok: z.literal(true), result: z.enum(['up-to-date', 'deployed']) }) } } },
+      ...errors,
+    },
+  }),
   update: createRoute({
     method: 'post',
     path: '/services/{name}/update',
@@ -179,7 +190,7 @@ const routes = {
 type ServiceInfo = z.infer<typeof Service>
 
 /** HTTP API over the generated stack: status, resource usage, logs and restarts. */
-export function createControlApp({ dir, token, docker = 'docker' }: ControlOptions): OpenAPIHono {
+export function createControlApp({ dir, token, docker = 'docker', upgrade }: ControlOptions): OpenAPIHono {
   const compose = async (args: string[]): Promise<string> => (await run(docker, composeArgs(dir, args), { maxBuffer: 64 * 1024 * 1024 })).stdout
   const listServices = async (): Promise<ServiceInfo[]> => parseServices(await compose(['ps', '--all', '--format', 'json']))
   const streamLines = (stream: SSEStreamingApi, args: string[], event: string, transform: (line: string) => string | undefined): Promise<void> => {
@@ -273,6 +284,11 @@ export function createControlApp({ dir, token, docker = 'docker' }: ControlOptio
   app.openapi(routes.updateAll, async (c) => {
     await update()
     return c.json({ ok: true as const }, 200)
+  })
+  app.openapi(routes.upgrade, async (c) => {
+    if (!upgrade)
+      return c.json(toBody(diagnostics.DEV_CONTAINER_D4004({ message: 'Upgrades need the daemon. Run `dev-container daemon run` or `daemon install`.' })), 400)
+    return c.json({ ok: true as const, result: await upgrade() }, 200)
   })
   app.openapi(routes.update, async (c) => {
     await update(c.req.valid('param').name)

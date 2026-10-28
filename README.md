@@ -209,6 +209,7 @@ dev-container generate                 write .dev-container/
 dev-container up [compose up flags]    generate, then docker compose up -d --build --remove-orphans
 dev-container compose <args...>        docker compose against the generated stack
 dev-container serve [--host] [--port]  serve the control API
+dev-container daemon run|install|uninstall  keep it running, upgrade on a schedule
 ```
 
 `compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
@@ -292,7 +293,17 @@ export default defineConfig({
 })
 ```
 
-On macOS, `dev-container autosync install` writes a launchd agent that runs `sync` every `interval` seconds, logging to `.dev-container/sync.log`. `autosync uninstall` removes it. Elsewhere, run `dev-container sync` from cron or a systemd timer.
+### The daemon
+
+`dev-container daemon run` serves the control API and monitor, like `serve`, and keeps running. `daemon install` registers it to start at login and restart whenever it exits: a launchd agent on macOS, a systemd user unit on Linux, logging to `.dev-container/daemon.log` on macOS. `daemon uninstall` removes it.
+
+With `sync.autoUpgrade: true`, the daemon runs `sync` every `sync.interval` seconds. Either way, the monitor's **Upgrade** button (`POST /upgrade`) runs `sync --force` on demand: it pulls the checkout, rebuilds the images and restarts the stack. After a deploy the daemon exits so its supervisor starts it again on the pulled code.
+
+```ts
+export default defineConfig({
+  sync: { autoUpgrade: true, interval: 300, commands: ['pnpm install --frozen-lockfile'] },
+})
+```
 
 ## Using it with an orchestrator
 

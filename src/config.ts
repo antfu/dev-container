@@ -147,11 +147,13 @@ const Config = z.strictObject({
   secrets: z.array(Secret).default([]),
   /** `dev-container sync` for a stack kept in a git checkout on an always-on host. */
   sync: z.strictObject({
-    /** Seconds between runs of the launchd agent that `autosync install` writes. */
+    /** Pull, rebuild and restart on its own: the daemon runs `sync` every `interval` seconds. Off, an upgrade only runs when asked, from `sync` or the monitor. */
+    autoUpgrade: z.boolean().default(false),
+    /** Seconds between the daemon's automatic upgrades. */
     interval: z.number().int().min(10).default(300),
     /** Shell commands run from the project root before `up`, such as `pnpm install --frozen-lockfile`. */
     commands: z.array(z.string()).default([]),
-  }).default({ interval: 300, commands: [] }),
+  }).default({ autoUpgrade: false, interval: 300, commands: [] }),
   egress: Egress.default({ policy: 'open' }),
   /** The default node, for services without their own `tailscale`. */
   tailscale: Tailscale.optional(),
