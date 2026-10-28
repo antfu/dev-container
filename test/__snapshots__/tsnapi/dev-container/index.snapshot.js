@@ -8,7 +8,7 @@ export function createControlApp(_) {}
 export function defineConfig(_) {}
 export function generate(_) {}
 export async function loadConfig(_) {}
-export function resolveConfig(_) {}
+export function resolveConfig(_, _) {}
 export function serveControl(_) {}
 export function up(_) {}
 // #endregion

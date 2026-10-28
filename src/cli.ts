@@ -6,6 +6,7 @@ import { loadConfig } from './config'
 import { serveControl } from './control'
 import { compose, up } from './docker'
 import { generate, readControlToken } from './generate'
+import { reportError, wantsJson } from './report'
 
 const HELP = `Usage: dev-container <command>
 
@@ -14,6 +15,10 @@ Commands:
   up [compose up flags]    Generate, then \`docker compose up -d --build --remove-orphans\`
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
   serve [--host] [--port]  Serve the control API (token in .dev-container/control-token)
+
+Errors are printed as diagnostics with a code, a fix and a docs link. Pass --json
+(or set DEV_CONTAINER_JSON=1) for one JSON object per diagnostic on stderr; this is
+the default when an AI agent runs the CLI.
 `
 
 async function main(argv: string[]): Promise<number> {
@@ -50,12 +55,16 @@ async function main(argv: string[]): Promise<number> {
   }
 }
 
-main(process.argv.slice(2)).then(
+// `--json` is ours anywhere except after `compose`, where it belongs to docker.
+const args = process.argv.slice(2)
+const end = args[0] === 'compose' ? 1 : args.length
+const json = wantsJson(args.slice(0, end).includes('--json'))
+main(args.filter((arg, i) => i >= end || arg !== '--json')).then(
   (code) => {
     process.exitCode = code
   },
   (error: unknown) => {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+    reportError(error, json)
     process.exitCode = 1
   },
 )

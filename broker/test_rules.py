@@ -45,7 +45,7 @@ class HostMatching(unittest.TestCase):
 class Injection(unittest.TestCase):
     def test_swaps_bearer_for_bound_host(self):
         d = request("api.github.com", [("Authorization", "Bearer " + GH), ("Accept", "*/*")])
-        self.assertEqual(d.blocked, "")
+        self.assertIsNone(d.blocked)
         self.assertEqual(d.headers, [("Authorization", "Bearer ghp_real"), ("Accept", "*/*")])
         self.assertEqual(d.injected, ["GH_TOKEN"])
 
@@ -59,7 +59,7 @@ class Injection(unittest.TestCase):
 
     def test_untouched_without_placeholders(self):
         d = request("example.com", [("Authorization", "Bearer something")])
-        self.assertEqual((d.blocked, d.injected), ("", []))
+        self.assertEqual((d.blocked, d.injected), (None, []))
 
     def test_host_is_case_and_dot_insensitive(self):
         d = request("API.GitHub.com.", [("Authorization", "Bearer " + GH)])
@@ -69,42 +69,55 @@ class Injection(unittest.TestCase):
 class Blocking(unittest.TestCase):
     def test_placeholder_to_unbound_host(self):
         d = request("evil.example", [("Authorization", "Bearer " + GH)])
-        self.assertIn("not bound", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5004")
 
     def test_placeholder_in_basic_to_unbound_host(self):
         d = request("evil.example", [("Authorization", basic("x", GH))])
-        self.assertIn("not bound", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5004")
 
     def test_wrong_port(self):
         d = request("api.acme.dev", [("x-api-key", ACME)], port=443)
-        self.assertIn("not bound", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5004")
 
     def test_plain_http(self):
         d = request("api.github.com", [("Authorization", "Bearer " + GH)], scheme="http", port=80)
-        self.assertIn("refusing", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5005")
 
     def test_placeholder_in_url(self):
         d = request("api.github.com", [], url="https://api.github.com/?token=" + GH)
-        self.assertEqual(d.blocked, "placeholder in URL")
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5002")
 
     def test_unknown_placeholder(self):
         d = request("api.github.com", [("Authorization", "Bearer dc-GH_TOKEN-aaaaaaaaaaaaaaaa")])
-        self.assertIn("unknown placeholder", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5003")
 
     def test_missing_value(self):
         r = Rules.from_json({"policy": "open", "allow": [], "secrets": [{"name": "X", "placeholder": GH, "hosts": ["x.dev"]}]}, {})
         d = decide(r, "https", "x.dev", 443, "https://x.dev/", [("Authorization", GH)])
-        self.assertIn("no value", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5006")
+
+
+class Rendering(unittest.TestCase):
+    def test_reads_like_a_nostics_diagnostic(self):
+        d = request("evil.example", [("Authorization", "Bearer " + GH)])
+        self.assertEqual(
+            d.blocked.render().splitlines(),
+            [
+                "[DEV_CONTAINER_B5004] GH_TOKEN is not bound to evil.example, so the broker will not send it there.",
+                "\u251c\u25b6 fix: Send GH_TOKEN only to api.github.com, github.com. If evil.example truly needs it, ask for the host to be added to that secret's `hosts`. This is configured on the host in dev-container.config.ts; it cannot be changed from inside the container.",
+                "\u2570\u25b6 see: https://github.com/antfu/dev-container/blob/main/docs/errors/DEV_CONTAINER_B5004.md",
+            ],
+        )
 
 
 class Allowlist(unittest.TestCase):
     def test_blocks_unlisted_hosts(self):
         d = request("example.com", [], policy="allowlist", allow=["registry.npmjs.org"])
-        self.assertIn("not on the allowlist", d.blocked)
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5001")
 
     def test_allows_listed_and_secret_hosts(self):
-        self.assertEqual(request("registry.npmjs.org", [], policy="allowlist", allow=["registry.npmjs.org"]).blocked, "")
-        self.assertEqual(request("api.github.com", [], policy="allowlist").blocked, "")
+        self.assertIsNone(request("registry.npmjs.org", [], policy="allowlist", allow=["registry.npmjs.org"]).blocked)
+        self.assertIsNone(request("api.github.com", [], policy="allowlist").blocked)
 
     def test_connect_targets(self):
         r = rules("allowlist", ["registry.npmjs.org"])
@@ -113,7 +126,7 @@ class Allowlist(unittest.TestCase):
         self.assertFalse(allowed(r, "evil.example", 22))
 
     def test_open_policy_allows_anything(self):
-        self.assertEqual(request("example.com", []).blocked, "")
+        self.assertIsNone(request("example.com", []).blocked)
 
 
 if __name__ == "__main__":

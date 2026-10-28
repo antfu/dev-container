@@ -5,19 +5,19 @@ import os
 
 from mitmproxy import http
 
-from rules import Rules, allowed, decide
+from rules import Rules, allowed, decide, not_allowed
 
 
 def log(event, **fields):
     print(json.dumps({"event": event, **fields}), flush=True)
 
 
-def block(flow, reason):
-    log("block", host=flow.request.host, port=flow.request.port, method=flow.request.method, reason=reason)
+def block(flow, blocked):
+    log("block", code=blocked.code, host=flow.request.host, port=flow.request.port, method=flow.request.method, why=blocked.why)
     flow.response = http.Response.make(
         403,
-        "dev-container broker blocked this request: %s\n" % reason,
-        {"content-type": "text/plain"},
+        blocked.render(),
+        {"content-type": "text/plain; charset=utf-8", "x-dev-container-diagnostic": blocked.code},
     )
 
 
@@ -35,7 +35,7 @@ class Broker:
         # Tunnels that turn out not to carry HTTP are relayed as raw TCP without
         # reaching `request`, so the allowlist must also hold at CONNECT time.
         if not allowed(self.rules, flow.request.host, flow.request.port):
-            block(flow, "host %s is not on the allowlist" % flow.request.host)
+            block(flow, not_allowed(flow.request.host))
 
     def request(self, flow: http.HTTPFlow):
         req = flow.request

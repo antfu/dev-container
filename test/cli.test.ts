@@ -31,9 +31,28 @@ describe('cli', () => {
   it('fails with the missing secret named', () => {
     const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }], services: { agent: { image: 'alpine' } } }\n`)
-    expect(run(root, ['generate'])).toEqual({
+    const { code, output } = run(root, ['generate', '--json'])
+    expect(code).toBe(1)
+    expect(JSON.parse(output)).toEqual({
+      level: 'error',
+      name: 'DEV_CONTAINER_S2001',
+      why: 'secret ACME_KEY: $ACME_KEY is not set in the environment or any envFile.',
+      fix: 'Add `ACME_KEY=...` to .env.secret (or export it in the shell), or point the source at a `{ command }`.',
+      docs: 'https://github.com/antfu/dev-container/blob/main/docs/errors/DEV_CONTAINER_S2001.md',
+    })
+  })
+
+  it('prints readable diagnostics for people', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    writeFileSync(join(root, 'dev-container.config.mjs'), `export default { services: { agent: { image: 'alpine', ports: ['0'] } } }\n`)
+    expect(run(root, ['generate'], { NO_COLOR: '1' })).toEqual({
       code: 1,
-      output: 'Could not resolve secrets:\n  - secret ACME_KEY: $ACME_KEY is not set in the environment or envFile\n',
+      output: [
+        '[DEV_CONTAINER_N3002] Invalid port range 0 on service agent.',
+        '├▶ fix: Use a port between 1 and 65535, or `start-end` with start <= end.',
+        '╰▶ see: https://github.com/antfu/dev-container/blob/main/docs/errors/DEV_CONTAINER_N3002.md',
+        '',
+      ].join('\n'),
     })
   })
 

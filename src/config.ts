@@ -2,6 +2,7 @@ import { dirname } from 'node:path'
 import process from 'node:process'
 import { createConfigLoader } from 'unconfig'
 import { z } from 'zod'
+import { diagnostics } from './diagnostics'
 
 const RESERVED_SERVICES = ['broker', 'relay', 'tailscale']
 const RESERVED_VOLUMES = new Set(['ca', 'broker-ca'])
@@ -95,21 +96,32 @@ export function defineConfig(config: UserConfig): UserConfig {
   return config
 }
 
-export function resolveConfig(config: UserConfig): ResolvedConfig {
+/**
+ * Validates a config. Throws an `AggregateError` of `DEV_CONTAINER_C1002`
+ * diagnostics, one per problem, so every mistake is reported at once.
+ */
+export function resolveConfig(config: UserConfig, file?: string): ResolvedConfig {
   const result = Config.safeParse(config)
-  if (!result.success)
-    throw new Error(`Invalid dev-container config:\n${z.prettifyError(result.error)}`)
+  if (!result.success) {
+    const issues = result.error.issues.map(issue => diagnostics.DEV_CONTAINER_C1002({
+      path: issue.path.map(String).join('.'),
+      message: issue.message,
+      sources: file ? [file] : undefined,
+    }))
+    throw new AggregateError(issues, 'Invalid dev-container config')
+  }
   return result.data
 }
 
 /** Loads `dev-container.config.*`; `root` is the directory containing it. */
-export async function loadConfig(cwd = process.cwd()): Promise<{ config: ResolvedConfig, root: string }> {
+export async function loadConfig(cwd = process.cwd()): Promise<{ config: ResolvedConfig, root: string, file: string }> {
   const loader = createConfigLoader<UserConfig>({
     sources: [{ files: 'dev-container.config' }],
     cwd,
   })
   const { config, sources } = await loader.load()
-  if (!sources[0])
-    throw new Error(`No dev-container.config.* found from ${cwd}`)
-  return { config: resolveConfig(config), root: dirname(sources[0]) }
+  const [file] = sources
+  if (!file)
+    throw diagnostics.DEV_CONTAINER_C1001({ cwd })
+  return { config: resolveConfig(config, file), root: dirname(file), file }
 }

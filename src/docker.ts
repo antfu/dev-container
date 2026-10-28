@@ -1,6 +1,8 @@
+import type { Diagnostic } from 'nostics'
 import type { GenerateOptions } from './generate'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
+import { diagnostics } from './diagnostics'
 import { generate } from './generate'
 
 export interface ComposeOptions {
@@ -18,9 +20,17 @@ export function composeArgs(dir: string, args: string[]): string[] {
 export function compose(args: string[], { dir, docker = 'docker' }: ComposeOptions): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(docker, composeArgs(dir, args), { stdio: 'inherit' })
-    child.on('error', reject)
+    child.on('error', error => reject(dockerFailure(error, docker)))
     child.on('close', code => resolve(code ?? 1))
   })
+}
+
+/** Maps a failed docker invocation to a diagnostic: missing CLI, or the command's own error output. */
+export function dockerFailure(error: Error, docker: string): Diagnostic {
+  if ('code' in error && error.code === 'ENOENT')
+    return diagnostics.DEV_CONTAINER_D4001({ docker, cause: error })
+  const stderr = 'stderr' in error && typeof error.stderr === 'string' ? error.stderr.trim() : ''
+  return diagnostics.DEV_CONTAINER_D4002({ output: stderr || error.message, cause: error })
 }
 
 /** Generates `.dev-container/` and starts the stack. */
