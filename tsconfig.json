@@ -4,7 +4,7 @@
     "lib": ["ESNext"],
     "module": "Preserve",
     "paths": {
-      "dev-container": ["./src/index.ts"]
+      "@antfu/dev-container": ["./src/index.ts"]
     },
     "strict": true,
     "strictNullChecks": true,

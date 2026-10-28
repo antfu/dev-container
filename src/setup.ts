@@ -101,7 +101,7 @@ function setValue(file: string, key: string, value: string): string {
 
 function starterConfig(image: string, ports: string[]): string {
   const portList = ports.map(port => /^\d+$/.test(port) ? port : `'${port}'`).join(', ')
-  return `import type { UserConfig } from 'dev-container'
+  return `import type { UserConfig } from '@antfu/dev-container'
 
 // GH_TOKEN and NPM_TOKEN from .env.secret are brokered: the container only sees placeholders.
 // Reference: https://github.com/antfu/dev-container#config

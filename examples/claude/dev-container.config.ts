@@ -1,4 +1,4 @@
-import { defineConfig } from 'dev-container'
+import { defineConfig } from '@antfu/dev-container'
 
 /** A plain shell agent: `dev-container up`, then `dev-container compose exec claude claude`. */
 export default defineConfig({

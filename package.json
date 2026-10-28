@@ -1,5 +1,5 @@
 {
-  "name": "dev-container",
+  "name": "@antfu/dev-container",
   "type": "module",
   "version": "0.0.0",
   "packageManager": "pnpm@12.8.1",

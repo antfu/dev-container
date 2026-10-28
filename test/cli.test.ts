@@ -63,7 +63,7 @@ describe('cli', () => {
     const result = run(root, ['setup'], { PATH: `${bin}:${process.env.PATH}` })
     expect(result.code).toBe(0)
     expect(result.output).toContain('✔ filled GH_TOKEN in .env.secret from `gh auth token`\n')
-    expect(result.output).toContain('Next: review dev-container.config.ts, then run `npx dev-container up`.')
+    expect(result.output).toContain('Next: review dev-container.config.ts, then run `npx @antfu/dev-container up`.')
     expect(run(root, ['generate']).code).toBe(0)
   })
 
