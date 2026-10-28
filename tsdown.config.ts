@@ -8,6 +8,8 @@ export default defineConfig({
   ],
   dts: true,
   exports: { exclude: ['cli'] },
+  // The API snapshot records chunk file names; keep them stable across builds.
+  hash: false,
   publint: true,
   plugins: [
     StaleGuardRecorder(),

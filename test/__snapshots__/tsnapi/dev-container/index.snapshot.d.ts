@@ -71,6 +71,7 @@ export declare function loadConfig(_?: any): Promise<{
   root: string;
   file: string;
 }>;
+export declare function readControlToken(_: string): string;
 export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
 export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
 export declare function setup({ root, image, ports, gh }: SetupOptions): SetupResult;
