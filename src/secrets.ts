@@ -19,7 +19,7 @@ export function readEnvFile(path: string): Record<string, string> {
 }
 
 /** The host environment wins over envFiles, as with dotenv. */
-function lookupEnv(lookup: SecretLookup, name: string): string | undefined {
+export function lookupEnv(lookup: SecretLookup, name: string): string | undefined {
   return lookup.env[name] || lookup.envFile[name] || undefined
 }
 

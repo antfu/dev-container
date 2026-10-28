@@ -1,7 +1,6 @@
-import { defineConfig, presets } from 'dev-container'
+import { defineConfig } from 'dev-container'
 
 export default defineConfig({
-  secrets: [presets.github(), presets.npm()],
   services: {
     opencode: {
       build: '.',

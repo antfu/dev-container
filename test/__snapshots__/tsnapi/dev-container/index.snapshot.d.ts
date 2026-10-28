@@ -31,6 +31,7 @@ export interface ControlOptions {
 export interface Generated {
   dir: string;
   composeFile: string;
+  warnings: Diagnostic<unknown>[];
 }
 export interface GenerateOptions {
   config: ResolvedConfig;
@@ -49,19 +50,12 @@ export type SecretConfig = z.input<typeof Secret>;
 export type UserConfig = z.input<typeof Config>;
 // #endregion
 
-// #region Namespaces
-export declare namespace presets {
-  export function github(_?: PresetOptions): SecretConfig;
-  export function npm(_?: PresetOptions): SecretConfig;
-}
-// #endregion
-
 // #region Functions
 export declare function buildStack(_: ResolvedConfig, _: StackContext): Stack;
 export declare function compose(_: string[], { dir, docker }: ComposeOptions): Promise<number>;
 export declare function createControlApp({ dir, token, docker }: ControlOptions): OpenAPIHono;
 export declare function defineConfig(_: UserConfig): UserConfig;
-export declare function generate({ config, root, env }: GenerateOptions): Generated;
+export declare function generate({ config: userConfig, root, env }: GenerateOptions): Generated;
 export declare function loadConfig(_?: any): Promise<{
   config: ResolvedConfig;
   root: string;
@@ -72,6 +66,7 @@ export declare function serveControl({ hostname, port, ...options }: ServeContro
 export declare function up(_: GenerateOptions & {
   args?: string[];
   docker?: string;
+  onWarnings?: (_: Diagnostic<unknown>[]) => void;
 }): Promise<number>;
 // #endregion
 

@@ -6,7 +6,7 @@ import { loadConfig } from './config'
 import { serveControl } from './control'
 import { compose, up } from './docker'
 import { generate, readControlToken } from './generate'
-import { reportError, wantsJson } from './report'
+import { report, reportError, wantsJson } from './report'
 
 const HELP = `Usage: dev-container <command>
 
@@ -21,7 +21,7 @@ Errors are printed as diagnostics with a code, a fix and a docs link. Pass --jso
 the default when an AI agent runs the CLI.
 `
 
-async function main(argv: string[]): Promise<number> {
+async function main(argv: string[], json: boolean): Promise<number> {
   const [command, ...rest] = argv
   if (!command || command === '--help' || command === '-h') {
     process.stdout.write(HELP)
@@ -33,12 +33,13 @@ async function main(argv: string[]): Promise<number> {
 
   switch (command) {
     case 'generate': {
-      const { composeFile } = generate({ config, root })
+      const { composeFile, warnings } = generate({ config, root })
+      report(warnings, 'warning', json)
       process.stdout.write(`Generated ${composeFile}\n`)
       return 0
     }
     case 'up':
-      return up({ config, root, args: rest })
+      return up({ config, root, args: rest, onWarnings: warnings => report(warnings, 'warning', json) })
     case 'compose':
       return compose(rest, { dir })
     case 'serve': {
@@ -59,7 +60,7 @@ async function main(argv: string[]): Promise<number> {
 const args = process.argv.slice(2)
 const end = args[0] === 'compose' ? 1 : args.length
 const json = wantsJson(args.slice(0, end).includes('--json'))
-main(args.filter((arg, i) => i >= end || arg !== '--json')).then(
+main(args.filter((arg, i) => i >= end || arg !== '--json'), json).then(
   (code) => {
     process.exitCode = code
   },

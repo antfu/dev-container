@@ -1,3 +1,4 @@
+import type { BuiltinName } from './builtins'
 import { dirname } from 'node:path'
 import process from 'node:process'
 import { createConfigLoader } from 'unconfig'
@@ -61,6 +62,8 @@ const Service = z.strictObject({
   compose: z.record(z.string(), z.json()).optional(),
 }).refine(service => service.image || service.build, 'requires `image` or `build`')
 
+const Builtin = z.union([z.literal(false), z.strictObject({ from: SecretSource })])
+
 const Egress = z.discriminatedUnion('policy', [
   z.strictObject({ policy: z.literal('open') }),
   z.strictObject({ policy: z.literal('allowlist'), allow: z.array(HostPattern).default([]) }),
@@ -69,10 +72,12 @@ const Egress = z.discriminatedUnion('policy', [
 const Config = z.strictObject({
   /** Compose project name. Defaults to the project directory name. */
   name: z.string().regex(/^[a-z0-9][\w-]*$/).optional(),
-  /** Dotenv file consulted after the host environment for `{ env }` sources. */
-  envFile: z.string().optional(),
+  /** Dotenv files consulted after the host environment for `{ env }` sources; later files win. */
+  envFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).default([]),
   /** Host address published ports bind to. */
   bind: z.string().default('127.0.0.1'),
+  /** `github` and `npm` are brokered automatically when their token is set; `false` turns one off, `{ from }` overrides its source. */
+  builtins: z.strictObject({ github: Builtin.optional(), npm: Builtin.optional() } satisfies Record<BuiltinName, z.ZodType>).default({}),
   secrets: z.array(Secret).default([]),
   egress: Egress.default({ policy: 'open' }),
   tailscale: z.strictObject({
@@ -88,6 +93,7 @@ const Config = z.strictObject({
 export type UserConfig = z.input<typeof Config>
 export type ResolvedConfig = z.output<typeof Config>
 export type SecretConfig = z.input<typeof Secret>
+export type ResolvedSecret = z.output<typeof Secret>
 export type ResolvedService = z.output<typeof Service>
 export type SecretSourceConfig = z.output<typeof SecretSource>
 export type JsonValue = z.output<ReturnType<typeof z.json>>
