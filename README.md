@@ -91,6 +91,7 @@ export default defineConfig({
       ports: [3000, '5170-5180', { port: 6767, tailnet: true }],
       volumes: ['./projects:/workspace'],
       persist: ['/home/paseo'], // kept in .dev-container/state/agent/
+      // network: 'service:browser', // share another caged service's localhost
       control: true, // inject the control API URL and token
       compose: { mem_limit: '8g' }, // raw compose fields, deep-merged
     },
@@ -153,6 +154,10 @@ With `tailscale` configured, ports marked `tailnet: true` are also served as `ht
 Each `persist` path is bind-mounted from `.dev-container/state/<service>/<path>`. `dev-container` never deletes anything there; everything else in `.dev-container/` is regenerated on every run. The directory carries its own `.gitignore`.
 
 The host directory starts empty and hides whatever the image had at that path. On Linux it is owned by your user, so the container user needs the same uid; `node` and `paseo` images use `1000`.
+
+### Shared network
+
+`network: 'service:<name>'` puts a service in another caged service's network namespace, as compose's `network_mode` does, so the two reach each other on `localhost`. Its `ports` are published through that service. Only caged services can be joined, and only one level deep.
 
 ## CLI
 

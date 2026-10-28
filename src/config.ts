@@ -68,6 +68,8 @@ const Service = z.strictObject({
   env: z.record(EnvName, z.union([z.string(), SecretSource])).default({}),
   ports: z.array(Port).default([]),
   volumes: z.array(z.string().refine(volume => !RESERVED_VOLUMES.has(volume.split(':')[0] ?? ''), 'uses a volume name reserved by dev-container')).default([]),
+  /** `service:<name>` joins another caged service's network namespace, so both share `localhost`. */
+  network: z.string().regex(/^service:[a-z0-9][\w-]*$/, 'must be `service:<name>`').optional(),
   /** Container paths persisted to `.dev-container/state/<service>/`. */
   persist: z.array(z.string().startsWith('/')).default([]),
   /** Inject the control server URL and token. */

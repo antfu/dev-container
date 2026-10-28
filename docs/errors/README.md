@@ -19,6 +19,7 @@ Every error `dev-container` reports carries one of these codes, a fix, and a lin
 | [DEV_CONTAINER_N3004](./DEV_CONTAINER_N3004.md) | Range on the tailnet | host |
 | [DEV_CONTAINER_N3005](./DEV_CONTAINER_N3005.md) | Tailnet port without Tailscale | host |
 | [DEV_CONTAINER_N3006](./DEV_CONTAINER_N3006.md) | Persist paths collide | host |
+| [DEV_CONTAINER_N3007](./DEV_CONTAINER_N3007.md) | Network is not a caged service | host |
 | [DEV_CONTAINER_D4001](./DEV_CONTAINER_D4001.md) | docker not found | host |
 | [DEV_CONTAINER_D4002](./DEV_CONTAINER_D4002.md) | docker failed | host |
 | [DEV_CONTAINER_D4003](./DEV_CONTAINER_D4003.md) | Control API: bad token | either |

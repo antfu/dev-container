@@ -75,6 +75,7 @@ export default {
       ports: [3000, '5170-5180', { port: 6767, tailnet: true }],
       volumes: ['./:/workspace'],
       persist: ['/root'],
+      // network: 'service:browser', // share another caged service's localhost
     },
   },
 } satisfies UserConfig

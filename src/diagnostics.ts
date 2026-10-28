@@ -73,6 +73,10 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
       why: (p: { service: string, paths: string[] }) => `Persist paths of service ${p.service} map to the same state directory: ${p.paths.join(', ')}.`,
       fix: 'Persist one of the paths\' common parent instead, or rename one of them.',
     },
+    DEV_CONTAINER_N3007: {
+      why: (p: { service: string, network: string }) => `Service ${p.service} sets \`network: '${p.network}'\`, which is not another caged service with its own network.`,
+      fix: 'Point `network` at a service defined in `services` that does not set `network` itself.',
+    },
     DEV_CONTAINER_D4001: {
       why: (p: { docker: string }) => `The docker CLI (\`${p.docker}\`) was not found.`,
       fix: 'Install Docker (with the compose plugin) and make sure `docker` is on PATH.',

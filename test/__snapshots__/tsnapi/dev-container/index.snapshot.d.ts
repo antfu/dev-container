@@ -101,7 +101,8 @@ interface ComposeService {
     path: string;
     required: boolean;
   }[];
-  networks: string[];
+  networks?: string[];
+  network_mode?: string;
   ports?: string[];
   volumes?: string[];
   depends_on?: Record<string, {

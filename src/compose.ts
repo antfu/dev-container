@@ -20,7 +20,8 @@ interface ComposeService {
   command?: string | string[]
   environment?: Record<string, string>
   env_file?: { path: string, required: boolean }[]
-  networks: string[]
+  networks?: string[]
+  network_mode?: string
   ports?: string[]
   volumes?: string[]
   depends_on?: Record<string, { condition: string }>
@@ -71,6 +72,8 @@ export interface Stack {
 
 interface PublishedPort {
   service: string
+  /** The service whose network namespace the port is reached in. */
+  target: string
   start: number
   end: number
   tailnet: boolean
@@ -125,6 +128,8 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   }
 
   for (const [name, service] of Object.entries(config.services)) {
+    // Validates `network` for services that publish no ports, too.
+    networkOwner(config, name)
     const dirs = service.persist.map(path => join(ctx.dir, 'state', name, slugify(path)))
     if (new Set(dirs).size !== dirs.length)
       throw diagnostics.DEV_CONTAINER_N3006({ service: name, paths: service.persist })
@@ -135,7 +140,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   if (ports.length) {
     services.relay = {
       build: { context: join(ctx.assets, 'relay') },
-      command: ports.map(p => `${p.service}:${formatRange(p)}`),
+      command: ports.map(p => `${p.target}:${formatRange(p)}`),
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
       ports: ports.map(p => `${config.bind.includes(':') ? `[${config.bind}]` : config.bind}:${formatRange(p)}:${formatRange(p)}`),
@@ -147,9 +152,9 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   if (config.tailscale) {
     const tailnetPorts = ports.filter(p => p.tailnet)
     tailscaleServe = { TCP: {}, Web: {} }
-    for (const { service, start } of tailnetPorts) {
+    for (const { target, start } of tailnetPorts) {
       tailscaleServe.TCP[start] = { HTTPS: true }
-      tailscaleServe.Web[`\${TS_CERT_DOMAIN}:${start}`] = { Handlers: { '/': { Proxy: `http://${service}:${start}` } } }
+      tailscaleServe.Web[`\${TS_CERT_DOMAIN}:${start}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
     }
     const state = join(ctx.dir, 'state', 'tailscale')
     persistDirs.push(state)
@@ -219,7 +224,7 @@ function cagedService(
     },
     environment: Object.fromEntries(Object.entries(environment).map(([k, v]) => [k, escapeCompose(v)])),
     ...hasSecretEnv && { env_file: [{ path: envFilePath(ctx.dir, name), required: true }] },
-    networks: ['caged'],
+    ...service.network ? { network_mode: service.network } : { networks: ['caged'] },
     volumes: [
       `ca:${CA_DIR}:ro`,
       ...service.volumes.map(volume => resolveVolume(ctx.root, volume)),
@@ -273,7 +278,7 @@ function placeholderOf(ctx: StackContext, env: string): string {
 
 function collectPorts(config: ResolvedConfig): PublishedPort[] {
   const ports = Object.entries(config.services).flatMap(([service, { ports }]) =>
-    ports.map(({ port, tailnet }) => parsePort(service, String(port), tailnet, !!config.tailscale)))
+    ports.map(({ port, tailnet }) => parsePort(service, networkOwner(config, service), String(port), tailnet, !!config.tailscale)))
   const owners = new Map<number, string>()
   for (const { service, start, end } of ports) {
     for (let p = start; p <= end; p++) {
@@ -286,9 +291,9 @@ function collectPorts(config: ResolvedConfig): PublishedPort[] {
   return ports
 }
 
-function parsePort(service: string, port: string, tailnet: boolean, hasTailscale: boolean): PublishedPort {
+function parsePort(service: string, target: string, port: string, tailnet: boolean, hasTailscale: boolean): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
-  const parsed = { service, start, end, tailnet }
+  const parsed = { service, target, start, end, tailnet }
   if (start < 1 || end > 65535 || end < start)
     throw diagnostics.DEV_CONTAINER_N3002({ port, service })
   // The relay runs one forwarder per port.
@@ -299,6 +304,17 @@ function parsePort(service: string, port: string, tailnet: boolean, hasTailscale
   if (tailnet && !hasTailscale)
     throw diagnostics.DEV_CONTAINER_N3005({ port, service })
   return parsed
+}
+
+/** The service whose network namespace `name` lives in; only one level of sharing, and only with caged services. */
+function networkOwner(config: ResolvedConfig, name: string): string {
+  const network = config.services[name]?.network
+  if (!network)
+    return name
+  const owner = network.slice('service:'.length)
+  if (owner === name || !config.services[owner] || config.services[owner].network)
+    throw diagnostics.DEV_CONTAINER_N3007({ service: name, network })
+  return owner
 }
 
 function formatRange({ start, end }: PublishedPort): string {
