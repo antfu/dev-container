@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --no-warnings
 // Stands in for the docker CLI: canned output, and records each invocation to $FAKE_DOCKER_LOG.
 import { appendFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
