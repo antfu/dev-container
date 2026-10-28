@@ -151,7 +151,7 @@ With `tailscale` configured, ports marked `tailnet: true` are also served as `ht
 
 ### Persistence
 
-Each `persist` path is bind-mounted from `.dev-container/state/<service>/<path>`. `dev-container` never deletes anything there; everything else in `.dev-container/` is regenerated on every run. The directory carries its own `.gitignore`.
+Each `persist` path is bind-mounted from `.dev-container/state/<service>/<path>`. `dev-container` never deletes anything there; everything else in `.dev-container/` is regenerated on every run, apart from the `sync.json` that `sync` keeps. The directory carries its own `.gitignore`.
 
 The host directory starts empty and hides whatever the image had at that path. On Linux it is owned by your user, so the container user needs the same uid; `node` and `paseo` images use `1000`. To ship config into a persisted home, bake it into the image elsewhere and sync it on start; [`paseo-browser`](./examples/paseo-browser) shows an entrypoint that overwrites managed files, merges JSON and rewrites a marked TOML block, keeping whatever agents add.
 
@@ -167,6 +167,10 @@ dev-container generate                 write .dev-container/
 dev-container up [compose up flags]    generate, then docker compose up -d --build --remove-orphans
 dev-container compose <args...>        docker compose against the generated stack
 dev-container serve [--host] [--port]  serve the control API
+dev-container sync [--watch]           pull the config repo and `up` the stacks that changed
+                   [--interval <s>]    seconds between syncs (default 900)
+                   [--install]         install a user service that runs `sync --watch`
+                   [--uninstall]       remove it
 ```
 
 `compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
@@ -207,6 +211,37 @@ services:
 ```
 
 Run `dev-container generate` before `docker compose up` so placeholders and env files are fresh.
+
+## Sync from a config repo
+
+Keep your configs in a git repo, clone it on an always-on machine, and let `sync` deploy what you push:
+
+```sh
+cd ~/my-configs   # one or more directories with a dev-container.config.*
+npx @antfu/dev-container sync
+```
+
+Each run:
+
+1. Refuses to continue if tracked files have local edits, then runs `git pull --ff-only`. It never prompts for credentials.
+2. Finds every tracked `dev-container.config.*` in the repo. Each one's directory is a stack.
+3. Runs `up` for a stack only when its directory in git, or one of its `envFile`s, changed since its last successful sync. Other stacks keep running untouched.
+
+Failures are reported as diagnostics (`G6xxx`) and the command exits with `1`. A failed pull touches no stack. A stack whose config is invalid or whose `up` fails keeps its previous containers and is retried on the next run.
+
+Files outside the stack's directory, such as a shared build context, are not tracked; touch the stack's directory to redeploy it. Secrets stay in the host-only `.env.secret`, which is part of the check.
+
+### Background service
+
+```sh
+npm i -g @antfu/dev-container    # a stable path for the service to run
+cd ~/my-configs
+dev-container sync --install --interval 300
+```
+
+`--install` writes and starts a user service that runs `sync --watch` in the repo, restarted if it exits: a systemd user unit on Linux (logs with `journalctl --user -u dev-container-sync-<repo> -f`) or a launchd agent on macOS (logs in `~/Library/Logs/`). Run it again to change the interval; `--uninstall` removes it. On Linux, run `loginctl enable-linger` so the service keeps running while you are logged out.
+
+The service records your current `PATH` so it finds the same `git` and `docker`. It does not inherit your shell's other variables, so secrets must come from `envFile`s or `{ command }` sources that work without a terminal.
 
 ## Control API
 

@@ -25,6 +25,8 @@ You are **inside the cage** if `HTTPS_PROXY` is `http://broker:8080`.
 4. Re-run step 2 until there are no errors. Warnings such as `DEV_CONTAINER_S2002` (a builtin token is unset) are fine to leave.
 5. Run `npx @antfu/dev-container up`, then use `npx @antfu/dev-container compose <args>` for `logs`, `exec`, `restart` and `down`.
 
+When configs live in a git repo deployed by `dev-container sync` (often as a service from `sync --install`), change them by committing and pushing, not by editing the host checkout: sync refuses to pull over local edits (`DEV_CONTAINER_G6002`).
+
 Code prefixes:
 
 | Prefix | Area |
@@ -33,6 +35,7 @@ Code prefixes:
 | `S2` | secrets and env files |
 | `N3` | ports, volumes, persist |
 | `D4` | docker and the control API |
+| `G6` | `sync` from a config repo |
 | `B5` | broker blocks, seen from inside the cage |
 
 Secret values belong in `.env.secret`, never in `dev-container.config.ts`. Do not print them.

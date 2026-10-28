@@ -4,7 +4,7 @@ export const DOCS_BASE = 'https://github.com/antfu/dev-container/blob/main/docs/
 
 /**
  * Every user-facing failure. Codes are stable: `C` config, `S` secrets,
- * `N` network/ports/volumes, `D` docker and the control API. Broker codes
+ * `N` network/ports/volumes, `D` docker and the control API, `G` git sync. Broker codes
  * (`B`) live in `services/broker/rules.py` and share the docs directory.
  */
 export const diagnostics = /* #__PURE__ */ defineDiagnostics({
@@ -92,6 +92,30 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
     DEV_CONTAINER_D4004: {
       why: (p: { message: string }) => `Invalid control API request: ${p.message}`,
       fix: 'Compare the request with GET /openapi.json.',
+    },
+    DEV_CONTAINER_G6001: {
+      why: (p: { cwd: string, output: string }) => `${p.cwd} is not inside a git checkout: ${p.output}`,
+      fix: 'Run `dev-container sync` from a clone of the config repo, and make sure `git` is on PATH.',
+    },
+    DEV_CONTAINER_G6002: {
+      why: (p: { repo: string }) => `${p.repo} has uncommitted changes to tracked files, so sync did not pull.`,
+      fix: 'Commit and push the changes from another machine, or discard them on this one with `git restore .`.',
+    },
+    DEV_CONTAINER_G6003: {
+      why: (p: { output: string }) => `\`git pull --ff-only\` failed: ${p.output}`,
+      fix: 'Make the checkout a fast-forward of its upstream (`git status`, then `git reset --hard @{u}` to drop local commits), and check that the remote is reachable without a prompt.',
+    },
+    DEV_CONTAINER_G6004: {
+      why: (p: { root: string, code: number }) => `Stack ${p.root} was not updated: \`docker compose up\` exited with code ${p.code}.`,
+      fix: 'Read the docker output above, fix the config in the repo and push; the next sync retries. The stack keeps running as it was.',
+    },
+    DEV_CONTAINER_G6005: {
+      why: (p: { platform: string }) => `\`sync --install\` does not support ${p.platform}.`,
+      fix: 'Run `dev-container sync --watch` under your own process supervisor instead.',
+    },
+    DEV_CONTAINER_G6006: {
+      why: (p: { command: string, output: string }) => `\`${p.command}\` failed: ${p.output}`,
+      fix: 'Check that your user session has a running service manager (`systemctl --user status`, or a logged-in macOS GUI session), then run `sync --install` again.',
     },
   },
 })

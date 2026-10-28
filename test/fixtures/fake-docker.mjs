@@ -7,6 +7,8 @@ const args = process.argv.slice(2)
 const print = line => process.stdout.write(`${line}\n`)
 appendFileSync(process.env.FAKE_DOCKER_LOG, `${args.join(' ')}\n`)
 const [command, ...rest] = args[0] === 'compose' ? args.slice(3) : args
+if (process.env.FAKE_DOCKER_FAIL && args.join(' ').includes(process.env.FAKE_DOCKER_FAIL))
+  process.exit(1)
 
 function forever(print) {
   writeFileSync(process.env.FAKE_DOCKER_PID, String(process.pid))

@@ -43,6 +43,10 @@ export interface GenerateOptions {
   root: string;
   env?: NodeJS.ProcessEnv;
 }
+export interface InstallSyncServiceOptions extends SyncServiceOptions {
+  command: string[];
+  interval: number;
+}
 export interface ServeControlOptions extends ControlOptions {
   hostname?: string;
   port: number;
@@ -56,6 +60,33 @@ export interface SetupOptions {
 export interface SetupResult {
   changes: string[];
   warnings: Diagnostic<unknown>[];
+}
+export interface StackSync {
+  root: string;
+  status: 'unchanged' | 'updated' | 'failed';
+  warnings: Diagnostic<unknown>[];
+  error?: Error;
+}
+export interface SyncOptions {
+  cwd: string;
+  docker?: string;
+}
+export interface SyncResult {
+  repo: string;
+  from: string;
+  to: string;
+  stacks: StackSync[];
+}
+export interface SyncService {
+  name: string;
+  file: string;
+  logs: string;
+}
+export interface SyncServiceOptions {
+  cwd: string;
+  platform?: NodeJS.Platform;
+  home?: string;
+  scheduler?: string;
 }
 // #endregion
 
@@ -71,6 +102,7 @@ export declare function compose(_: string[], { dir, docker }: ComposeOptions): P
 export declare function createControlApp({ dir, token, docker }: ControlOptions): OpenAPIHono;
 export declare function defineConfig(_: UserConfig): UserConfig;
 export declare function generate({ config: userConfig, root, env }: GenerateOptions): Generated;
+export declare function installSyncService(_: InstallSyncServiceOptions): SyncService;
 export declare function loadConfig(_?: any): Promise<{
   config: ResolvedConfig;
   root: string;
@@ -80,6 +112,8 @@ export declare function readControlToken(_: string): string;
 export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
 export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
 export declare function setup({ root, image, ports, gh }: SetupOptions): SetupResult;
+export declare function sync({ cwd, docker }: SyncOptions): Promise<SyncResult>;
+export declare function uninstallSyncService(_: SyncServiceOptions): SyncService;
 export declare function up(_: GenerateOptions & {
   args?: string[];
   docker?: string;

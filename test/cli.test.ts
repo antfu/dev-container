@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -65,6 +65,25 @@ describe('cli', () => {
     expect(result.output).toContain('✔ filled GH_TOKEN in .env.secret from `gh auth token`\n')
     expect(result.output).toContain('Next: review dev-container.config.ts, then run `npx @antfu/dev-container up`.')
     expect(run(root, ['generate']).code).toBe(0)
+  })
+
+  it('syncs a config repo and reports each stack', () => {
+    const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
+    const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.com', ...args], { cwd, stdio: 'ignore' })
+    git(tmp, 'init', '--bare', '-b', 'main', 'remote.git')
+    git(tmp, 'clone', 'remote.git', 'host')
+    const host = join(tmp, 'host')
+    mkdirSync(join(host, 'agents'))
+    writeFileSync(join(host, 'agents/dev-container.config.mjs'), `export default { builtins: { github: false, npm: false }, services: { agent: { image: 'alpine' } } }\n`)
+    git(host, 'add', '.')
+    git(host, 'commit', '-m', 'init')
+    git(host, 'push', '-u', 'origin', 'main')
+    const bin = mkdtempSync(join(tmpdir(), 'dev-container-bin-'))
+    symlinkSync(fileURLToPath(new URL('fixtures/fake-docker.mjs', import.meta.url)), join(bin, 'docker'))
+    const env = { PATH: `${bin}:${process.env.PATH}`, FAKE_DOCKER_LOG: join(tmp, 'log') }
+
+    expect(run(host, ['sync'], env)).toEqual({ code: 0, output: 'Already up to date.\n✔ updated agents\n' })
+    expect(run(host, ['sync'], env)).toEqual({ code: 0, output: 'Already up to date.\n· unchanged agents\n' })
   })
 
   it('rejects unknown commands', () => {
