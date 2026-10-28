@@ -10,7 +10,7 @@ export interface ComposeOptions {
   docker?: string
 }
 
-function composeArgs(dir: string, args: string[]): string[] {
+export function composeArgs(dir: string, args: string[]): string[] {
   return ['compose', '-f', join(dir, 'compose.yml'), ...args]
 }
 

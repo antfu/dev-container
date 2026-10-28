@@ -4,10 +4,12 @@
 // #region Functions
 export function buildStack(_, _) {}
 export function compose(_, _) {}
+export function createControlApp(_) {}
 export function defineConfig(_) {}
 export function generate(_) {}
 export async function loadConfig(_) {}
 export function resolveConfig(_) {}
+export function serveControl(_) {}
 export function up(_) {}
 // #endregion
 
