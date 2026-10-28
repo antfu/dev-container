@@ -95,6 +95,7 @@ interface ComposeService {
     condition: string;
   }>;
   extra_hosts?: string[];
+  sysctls?: Record<string, string>;
   healthcheck?: {
     test: string[];
     interval: string;

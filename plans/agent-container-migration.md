@@ -8,7 +8,7 @@ The file references below are to agent-container at `f35c7d0`.
 
 | Today | With dev-container |
 | --- | --- |
-| `inject.py` matches on `pretty_host`, which comes from the client-sent `Host` header (plan 001, P1) | Matched against the CONNECT target and the upstream address; a placeholder to any other host gets a 403 |
+| `inject.py` matches on `pretty_host`, which comes from the client-sent `Host` header (plan 001, P1) | Matched against `request.host`, which mitmproxy takes from the CONNECT target inside a tunnel; a placeholder to any other host gets a 403 |
 | `caged` is a plain bridge, and anything that ignores `HTTP(S)_PROXY` reaches the internet (plan 007) | `caged` is `internal: true`; ports are published by the relay sidecar, so Docker Desktop keeps working |
 | Fixed dummy `dummy-broker-will-swap` | Random placeholder per `up`, so a stale or leaked one is refused |
 | The mitm CA private key is mounted into the workbench (`mitm-certs:/certs:ro`) | Only the public certificate is shared |
@@ -63,6 +63,8 @@ Option 1 is preferred, since it keeps the core minimal. The dev-server ranges (`
 ### Hub touchpoints
 
 - `server/api/system/restart.post.ts`, `services.get.ts`, `status.get.ts`: container-level restarts and resource stats come from the control API. Set `control: true` on the workbench and read `DEV_CONTAINER_CONTROL_URL` / `DEV_CONTAINER_CONTROL_TOKEN`. Restarts of supervisord programs inside the container stay with the hub.
+  - The control API runs on the host, not in the stack, so `dev-container serve` has to run there as a long-lived process: add a `make serve` target or a launchd/systemd unit.
+  - On Linux it must bind to `0.0.0.0` or the docker bridge address, because `host.docker.internal` resolves to the bridge gateway, not loopback.
 - `server/utils/gh.ts`, `project-add.ts`, `skills-add.ts`, `pr-*.ts`: no change. They already rely on the broker swapping the token.
 - `server/utils/versions.ts`, `dev-stub.ts`, `__fixtures__/system.ts`: the mitmproxy version now comes from dev-container's broker image instead of `versions.env`.
 - `server/utils/terminals.ts:36`: terminals still inherit `process.env`. That is fine now, because the GitHub token there is a placeholder.

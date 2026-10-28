@@ -34,7 +34,7 @@ describe('buildStack', () => {
         },
       },
     })
-    expect(stringify(stack.compose, { lineWidth: 0 })).toMatchSnapshot()
+    expect(stringify(stack.compose, { lineWidth: 0, aliasDuplicateObjects: false })).toMatchSnapshot()
     expect(stack.rules).toMatchInlineSnapshot(`
       {
         "allow": [
@@ -95,6 +95,16 @@ describe('buildStack', () => {
     expect(compose.services.agent!.networks).toEqual(['caged'])
   })
 
+  it('brackets an IPv6 bind address', () => {
+    const { compose } = build({ bind: '::1', services: { agent: { image: 'alpine', ports: [3000] } } })
+    expect(compose.services.relay!.ports).toEqual(['[::1]:3000:3000'])
+  })
+
+  it('resolves relative and home volume paths but keeps named volumes', () => {
+    const { compose } = build({ services: { agent: { image: 'alpine', volumes: ['./src:/src', '/abs:/abs:ro', 'data:/data'] } } })
+    expect(compose.services.agent!.volumes).toEqual(['ca:/etc/dev-container/ca:ro', '/work/my-project/src:/src', '/abs:/abs:ro', 'data:/data'])
+  })
+
   it('never puts real secret values into the compose file', () => {
     const { compose } = build({ secrets: [presets.github()], services: { agent: { image: 'alpine' } } })
     const environment = compose.services.agent!.environment!
@@ -108,6 +118,10 @@ describe('buildStack', () => {
     ['a tailnet range', { tailscale: { hostname: 'h' }, services: { a: { image: 'x', ports: [{ port: '3000-3001', tailnet: true }] } } }],
     ['tailnet without tailscale', { services: { a: { image: 'x', ports: [{ port: 3000, tailnet: true }] } } }],
     ['a reversed range', { services: { a: { image: 'x', ports: ['3002-3000'] } } }],
+    ['port 0', { services: { a: { image: 'x', ports: ['0'] } } }],
+    ['a port above 65535', { services: { a: { image: 'x', ports: ['99999'] } } }],
+    ['an oversized range', { services: { a: { image: 'x', ports: ['1-65535'] } } }],
+    ['colliding persist paths', { services: { a: { image: 'x', persist: ['/a/b-c', '/a/b/c'] } } }],
   ])('rejects %s', (_, config) => {
     expect(() => build(config)).toThrowErrorMatchingSnapshot()
   })
@@ -120,6 +134,7 @@ describe('resolveConfig', () => {
     ['a service without image or build', { services: { a: {} } }],
     ['a malformed host pattern', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
     ['a relative persist path', { services: { a: { image: 'x', persist: ['home'] } } }],
+    ['a reserved volume name', { services: { a: { image: 'x', volumes: ['broker-ca:/stolen'] } } }],
   ])('rejects %s', (_, config) => {
     expect(() => resolveConfig(config)).toThrowErrorMatchingSnapshot()
   })

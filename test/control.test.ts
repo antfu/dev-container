@@ -107,6 +107,13 @@ describe('control API', () => {
     expect(await response.json()).toEqual({ error: 'no such service: missing' })
   })
 
+  it('reports a missing docker binary instead of crashing', async () => {
+    const broken = createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker: join(tmpdir(), 'no-such-docker') })
+    expect((await broken.request('/services', auth)).status).toBe(502)
+    const events = await readEvents(await broken.request('/services/agent/logs?follow=1', auth), 1)
+    expect(events[0]!.event).toBe('error')
+  })
+
   it('rejects service names that could be read as flags', async () => {
     const response = await app().request('/services/--all/restart', { method: 'POST', ...auth })
     expect(response.status).toBe(400)
