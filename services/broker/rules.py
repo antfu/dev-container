@@ -179,7 +179,11 @@ def decide(rules, scheme, host, port, method, url, headers):
                 raise _Block(Block(
                     "DEV_CONTAINER_B5004",
                     "%s is not bound to %s, so the broker will not send it there." % (secret.name, host),
-                    "Send %s only to %s. If %s truly needs it, ask for the host to be added to that secret's `hosts`. %s." % (secret.name, ", ".join(secret.hosts), host, HOST_SIDE),
+                    "%s If %s truly needs it, ask for the host to be added to that secret's `hosts`. %s." % (
+                        "Send %s only to %s." % (secret.name, ", ".join(secret.hosts)) if secret.hosts else "%s is bound to no host, so it is never sent anywhere." % secret.name,
+                        host,
+                        HOST_SIDE,
+                    ),
                 ))
             if scheme != "https":
                 raise _Block(Block(

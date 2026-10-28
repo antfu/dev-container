@@ -169,6 +169,17 @@ class Rendering(unittest.TestCase):
         )
 
 
+class Unbound(unittest.TestCase):
+    def test_a_secret_without_hosts_is_never_sent(self):
+        r = Rules.from_json(
+            {"policy": "open", "allow": [], "secrets": [{"name": "STRAY_KEY", "placeholder": ACME, "hosts": []}]},
+            {"DEV_CONTAINER_SECRET_STRAY_KEY": "stray_real"},
+        )
+        d = decide(r, "https", "api.github.com", 443, "GET", "https://api.github.com/", [("Authorization", "Bearer " + ACME)])
+        self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5004")
+        self.assertIn("STRAY_KEY is bound to no host", d.blocked.render())
+
+
 class Allowlist(unittest.TestCase):
     def test_blocks_unlisted_hosts(self):
         d = request("example.com", [], policy="allowlist", allow=["registry.npmjs.org"])

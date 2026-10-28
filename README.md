@@ -109,6 +109,20 @@ export default defineConfig({
 
 A builtin is on whenever its token is set in the shell or an `envFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
 
+### Brokering a whole secret file
+
+`secretFile` lists dotenv files whose every variable is brokered, with no `secrets` entry needed. Each one becomes a placeholder in the cage, and the broker swaps in the real value on the wire.
+
+```ts
+export default defineConfig({
+  envFile: '.env', // values the cage may hold itself
+  secretFile: '.env.secret', // everything here stays with the broker
+  // ...
+})
+```
+
+A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `secretFile` is also consulted for `{ env }` sources, after `envFile`.
+
 ### Request rules
 
 A brokered secret, builtins included, can limit which requests it is sent with. The broker checks `rules` in order whenever the secret's placeholder is in a request, and the first match wins. A request no rule matches is allowed, so end with `{ action: 'deny' }` to allow only what is listed:

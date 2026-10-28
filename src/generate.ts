@@ -14,6 +14,8 @@ import { tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 import { formatEnvFile, lookupEnv, readEnvFile, resolveSource } from './secrets'
 
+const ENV_NAME = /^[A-Z_]\w*$/i
+
 export interface Generated {
   /** The `.dev-container` directory. */
   dir: string
@@ -35,9 +37,10 @@ export interface GenerateOptions {
  */
 export function generate({ config: userConfig, root, env = process.env }: GenerateOptions): Generated {
   const dir = join(root, '.dev-container')
-  const lookup = { root, env, envFile: Object.assign({}, ...userConfig.envFile.map(file => readEnvFile(resolve(root, file)))) }
+  const secretFile: Record<string, string> = Object.assign({}, ...userConfig.secretFile.map(file => readEnvFile(resolve(root, file))))
+  const lookup = { root, env, envFile: Object.assign({}, ...userConfig.envFile.map(file => readEnvFile(resolve(root, file))), secretFile) }
   const warnings: Diagnostic<unknown>[] = []
-  const config = { ...userConfig, secrets: activeSecrets(userConfig, lookup, warnings) }
+  const config = { ...userConfig, secrets: activeSecrets(userConfig, lookup, warnings, Object.keys(secretFile)) }
   const envFiles = resolveEnvFiles(config, lookup)
 
   mkdirSync(join(dir, 'env'), { recursive: true })
@@ -74,8 +77,11 @@ export function readControlToken(dir: string): string {
   return token
 }
 
-/** Enabled builtins followed by the configured secrets; no two may claim the same variable. */
-function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: Diagnostic<unknown>[]): ResolvedSecret[] {
+/**
+ * Enabled builtins, the configured secrets, then every other `secretFile` variable bound to no host;
+ * no two may claim the same variable.
+ */
+function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: Diagnostic<unknown>[], fileVars: string[]): ResolvedSecret[] {
   const claimed: { secret: ResolvedSecret, builtin?: BuiltinName }[] = []
   for (const builtin of BUILTIN_NAMES) {
     const setting = config.builtins[builtin]
@@ -99,7 +105,21 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
       owners.set(env, builtin)
     }
   }
-  return claimed.map(({ secret }) => secret)
+  const read = envsRead(config)
+  const unbound = fileVars.filter(env => !owners.has(env) && !read.has(env) && ENV_NAME.test(env))
+    .map((env): ResolvedSecret => ({ env, aliases: [], hosts: [], rules: [] }))
+  return [...claimed.map(({ secret }) => secret), ...unbound]
+}
+
+/** Variables that some `{ env }` source reads itself, so they must not also become placeholders. */
+function envsRead(config: ResolvedConfig): Set<string> {
+  const sources: SecretSourceConfig[] = [
+    ...tailscaleNodes(config).map(node => node.authKey),
+    ...config.secrets.flatMap(secret => secret.from ? [secret.from] : []),
+    ...Object.values(config.builtins).flatMap(builtin => builtin && builtin.from ? [builtin.from] : []),
+    ...Object.values(config.services).flatMap(service => Object.values(service.env).filter(value => typeof value !== 'string')),
+  ]
+  return new Set(sources.flatMap(source => 'env' in source ? [source.env] : []))
 }
 
 /** Resolves every secret up front so all missing ones are reported before anything is written. */

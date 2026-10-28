@@ -111,6 +111,32 @@ describe('builtin secrets', () => {
     expect(run({ envFile: '.env.secret', services: agent }, {}, root).brokerEnv).toContain(`DEV_CONTAINER_SECRET_GH_TOKEN='from-file'`)
   })
 
+  it('brokers every secretFile variable, binding only the ones a builtin or secret gives hosts', () => {
+    const root = project()
+    writeFileSync(join(root, '.env.secret'), 'GITHUB_TOKEN=ghp_real\nACME_KEY=acme_real\nSTRAY_KEY=stray_real\nTS_AUTHKEY=tskey\nAPP_PASSWORD=hunter2\n')
+    const { services, brokerEnv } = run({
+      secretFile: '.env.secret',
+      builtins: { npm: false },
+      secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }],
+      tailscale: { hostname: 'ts' },
+      services: { agent: { image: 'alpine', ports: [{ port: 80, tailnet: true }], env: { PASSWORD: { env: 'APP_PASSWORD' } } } },
+    }, {}, root)
+
+    // The token the builtin did not claim is brokered with no host; sources read as `{ env }` are not.
+    expect(brokerEnv).toBe(
+      `DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='acme_real'\nDEV_CONTAINER_SECRET_STRAY_KEY='stray_real'\n`,
+    )
+    expect(services.agent.environment.STRAY_KEY).toMatch(/^dc-STRAY_KEY-[0-9a-f]{16}$/)
+    expect(services.agent.environment.TS_AUTHKEY).toBeUndefined()
+    expect(services.agent.environment.APP_PASSWORD).toBeUndefined()
+    const rules = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES)
+    expect(rules.secrets.map((s: { name: string, hosts: string[] }) => [s.name, s.hosts])).toEqual([
+      ['GH_TOKEN', expect.arrayContaining(['api.github.com'])],
+      ['ACME_KEY', ['api.acme.dev']],
+      ['STRAY_KEY', []],
+    ])
+  })
+
   it('warns and leaves the cage without a placeholder when a token is unset', () => {
     const { services, warnings } = run({ services: agent }, { GH_TOKEN: 'ghp_real' })
     expect(services.agent.environment.NPM_TOKEN).toBeUndefined()

@@ -101,6 +101,13 @@ const Config = z.strictObject({
   name: z.string().regex(/^[a-z0-9][\w-]*$/).optional(),
   /** Dotenv files consulted after the host environment for `{ env }` sources; later files win. */
   envFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).default([]),
+  /**
+   * Dotenv files whose every variable is brokered: the cage gets a placeholder, and the broker swaps
+   * in the real value only towards the secret's bound hosts. A variable no builtin or `secrets` entry
+   * binds to a host is never sent anywhere. Also consulted for `{ env }` sources, after `envFile`.
+   * Variables that a `{ env }` source reads, such as the Tailscale auth key, are not brokered.
+   */
+  secretFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).default([]),
   /** Host address published ports bind to. */
   bind: z.string().default('127.0.0.1'),
   /** `github` and `npm` are brokered automatically when their token is set; `false` turns one off, `from` overrides its source, `rules` limits its requests. */
