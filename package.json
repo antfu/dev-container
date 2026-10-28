@@ -42,8 +42,9 @@
     "start": "tsx src/index.ts",
     "test": "pnpm run build && vitest",
     "typecheck": "tsc",
-    "ci": "pnpm run lint && pnpm run typecheck && pnpm run knip && pnpm run test --run",
-    "prepare": "git config core.hooksPath .githooks && simple-git-hooks && skills experimental_sync -y"
+    "ci": "pnpm run lint && pnpm run typecheck && pnpm run knip && pnpm run test --run && pnpm run test:broker",
+    "prepare": "git config core.hooksPath .githooks && simple-git-hooks && skills experimental_sync -y",
+    "test:broker": "python3 -m unittest discover -s broker"
   },
   "scripts-info": {
     "build": "Build the library for publishing",
@@ -56,7 +57,8 @@
     "test": "Run the test suite",
     "typecheck": "Check types",
     "ci": "Run the full continuous integration pipeline",
-    "prepare": "Set up git hooks and skills"
+    "prepare": "Set up git hooks and skills",
+    "test:broker": "Run the broker policy tests"
   },
   "dependencies": {
     "defu": "catalog:prod",
