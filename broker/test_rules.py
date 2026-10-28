@@ -1,7 +1,7 @@
 import base64
 import unittest
 
-from rules import Rules, decide, host_matches
+from rules import Rules, allowed, decide, host_matches
 
 GH = "dc-GH_TOKEN-0123456789abcdef"
 ACME = "dc-ACME_KEY-fedcba9876543210"
@@ -105,6 +105,12 @@ class Allowlist(unittest.TestCase):
     def test_allows_listed_and_secret_hosts(self):
         self.assertEqual(request("registry.npmjs.org", [], policy="allowlist", allow=["registry.npmjs.org"]).blocked, "")
         self.assertEqual(request("api.github.com", [], policy="allowlist").blocked, "")
+
+    def test_connect_targets(self):
+        r = rules("allowlist", ["registry.npmjs.org"])
+        self.assertTrue(allowed(r, "registry.npmjs.org", 443))
+        self.assertTrue(allowed(r, "GitHub.com.", 22))
+        self.assertFalse(allowed(r, "evil.example", 22))
 
     def test_open_policy_allows_anything(self):
         self.assertEqual(request("example.com", []).blocked, "")
