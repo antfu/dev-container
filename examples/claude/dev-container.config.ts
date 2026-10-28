@@ -4,7 +4,13 @@ import { defineConfig } from '@antfu/dev-container'
 export default defineConfig({
   egress: {
     policy: 'allowlist',
-    allow: ['api.anthropic.com', 'platform.claude.com', 'claude.ai', 'statsig.anthropic.com', 'registry.npmjs.org'],
+    allow: [
+      'api.anthropic.com',
+      'platform.claude.com',
+      'claude.ai',
+      'statsig.anthropic.com',
+      'registry.npmjs.org',
+    ],
   },
   services: {
     claude: {

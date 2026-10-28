@@ -2,7 +2,11 @@ import { defineConfig, presetWind4 } from 'unocss'
 
 /** Flat system: hairline borders, one accent, no shadows or gradients, 4px corners. */
 export default defineConfig({
-  presets: [presetWind4({ preflights: { reset: true } })],
+  presets: [
+    presetWind4({
+      preflights: { reset: true },
+    }),
+  ],
   theme: {
     colors: {
       bg: 'var(--c-bg)',
@@ -28,11 +32,13 @@ export default defineConfig({
     'label': 'text-xs uppercase tracking-wider text-muted font-medium',
     'panel': 'rounded border border-line bg-surface',
   },
-  preflights: [{
-    getCSS: () => `
+  preflights: [
+    {
+      getCSS: () => `
       :root { color-scheme: light dark; --c-bg: #fff; --c-surface: #fafafa; --c-line: #e4e4e7; --c-fg: #18181b; --c-muted: #71717a; --c-accent: #16a34a; --c-bad: #dc2626; --c-warn: #d97706; }
       @media (prefers-color-scheme: dark) { :root { --c-bg: #0c0c0e; --c-surface: #131316; --c-line: #27272a; --c-fg: #e4e4e7; --c-muted: #8b8b94; --c-accent: #22c55e; --c-bad: #f87171; --c-warn: #fbbf24; } }
       body { background: var(--c-bg); color: var(--c-fg); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; }
     `,
-  }],
+    },
+  ],
 })

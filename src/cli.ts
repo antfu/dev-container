@@ -46,21 +46,56 @@ async function main(argv: string[], json: boolean): Promise<number> {
       return 0
     }
     case 'up':
-      return up({ config, root, args: rest, onWarnings: warnings => report(warnings, 'warning', json) })
+      return up({
+        config,
+        root,
+        args: rest,
+        onWarnings: warnings => report(warnings, 'warning', json),
+      })
     case 'compose':
       return compose(rest, { dir })
     case 'serve': {
-      const { values } = parseArgs({ args: rest, options: { host: { type: 'string' }, port: { type: 'string' } } })
-      const port = values.port ? Number(values.port) : config.dashboard.port
+      const { values } = parseArgs({
+        args: rest,
+        options: {
+          host: { type: 'string' },
+          port: { type: 'string' },
+        },
+      })
+      const port = values.port
+        ? Number(values.port)
+        : config.dashboard.port
       const hostname = values.host ?? config.dashboard.host
-      serveDashboard({ dir, token: readDashboardToken(dir, config.dashboard.token), hostname, port, links: tailscaleLinks(config) })
-      process.stdout.write(`Dashboard API and dashboard on http://${hostname}:${port} (OpenAPI at /openapi.json, token in ${process.env.DEV_CONTAINER_DASHBOARD_TOKEN ? '$DEV_CONTAINER_DASHBOARD_TOKEN' : config.dashboard.token ? 'dashboard.token' : join(dir, 'dashboard-token')})\n`)
+      serveDashboard({
+        dir,
+        token: readDashboardToken(dir, config.dashboard.token),
+        hostname,
+        port,
+        links: tailscaleLinks(config),
+      })
+      process.stdout.write(`Dashboard API and dashboard on http://${hostname}:${port} (OpenAPI at /openapi.json, token in ${process.env.DEV_CONTAINER_DASHBOARD_TOKEN
+        ? '$DEV_CONTAINER_DASHBOARD_TOKEN'
+        : config.dashboard.token
+          ? 'dashboard.token'
+          : join(dir, 'dashboard-token')})\n`)
       return new Promise(() => {})
     }
     case 'upgrade': {
-      const { values } = parseArgs({ args: rest, options: { force: { type: 'boolean' } } })
-      const result = await selfUpgrade({ config, root, force: values.force, onWarnings: warnings => report(warnings, 'warning', json) })
-      process.stdout.write(result === 'deployed' ? 'Deployed.\n' : 'Up to date.\n')
+      const { values } = parseArgs({
+        args: rest,
+        options: {
+          force: { type: 'boolean' },
+        },
+      })
+      const result = await selfUpgrade({
+        config,
+        root,
+        force: values.force,
+        onWarnings: warnings => report(warnings, 'warning', json),
+      })
+      process.stdout.write(result === 'deployed'
+        ? 'Deployed.\n'
+        : 'Up to date.\n')
       return 0
     }
     case 'daemon':
@@ -73,7 +108,9 @@ async function main(argv: string[], json: boolean): Promise<number> {
 
 // `--json` is ours anywhere except after `compose`, where it belongs to docker.
 const args = process.argv.slice(2)
-const end = args[0] === 'compose' ? 1 : args.length
+const end = args[0] === 'compose'
+  ? 1
+  : args.length
 const json = wantsJson(args.slice(0, end).includes('--json'))
 async function runDaemonCommand(args: string[], { config, root, json }: { config: ResolvedConfig, root: string, json: boolean }): Promise<number> {
   const name = config.name ?? basename(root)
@@ -88,18 +125,39 @@ async function runDaemonCommand(args: string[], { config, root, json }: { config
   }
   if (action !== 'run')
     throw new Error('Usage: dev-container daemon run|install|uninstall')
-  const { values } = parseArgs({ args: rest, options: { host: { type: 'string' }, port: { type: 'string' } } })
-  const port = values.port ? Number(values.port) : config.dashboard.port
+  const { values } = parseArgs({
+    args: rest,
+    options: {
+      host: { type: 'string' },
+      port: { type: 'string' },
+    },
+  })
+  const port = values.port
+    ? Number(values.port)
+    : config.dashboard.port
   const host = values.host ?? config.dashboard.host
-  runDaemon({ config, root, host, port, onWarnings: warnings => report(warnings, 'warning', json) })
-  process.stdout.write(`Daemon on http://${host}:${port}${config.selfUpgrade.auto ? `, upgrading every ${config.selfUpgrade.interval}s` : ''}\n`)
+  runDaemon({
+    config,
+    root,
+    host,
+    port,
+    onWarnings: warnings => report(warnings, 'warning', json),
+  })
+  process.stdout.write(`Daemon on http://${host}:${port}${config.selfUpgrade.auto
+    ? `, upgrading every ${config.selfUpgrade.interval}s`
+    : ''}\n`)
   return new Promise(() => {})
 }
 
 const PORTS = /^\s*(?:\d+(?:-\d+)?\s*(?:,\s*|$))*$/
 
 async function runSetup(args: string[], json: boolean): Promise<number> {
-  const { values } = parseArgs({ args, options: { yes: { type: 'boolean', short: 'y' } } })
+  const { values } = parseArgs({
+    args,
+    options: {
+      yes: { type: 'boolean', short: 'y' },
+    },
+  })
   let image: string | undefined
   let ports: string[] = []
   // Agents and scripts get the defaults; people at a terminal get asked.
@@ -109,7 +167,9 @@ async function runSetup(args: string[], json: boolean): Promise<number> {
       message: 'Image for the agent service',
       placeholder: 'node:24',
       defaultValue: 'node:24',
-      validate: value => value && /[\s'"]/.test(value) ? 'An image reference has no spaces or quotes' : undefined,
+      validate: value => value && /[\s'"]/.test(value)
+        ? 'An image reference has no spaces or quotes'
+        : undefined,
     })
     if (isCancel(imageAnswer))
       return cancelled()
@@ -117,7 +177,9 @@ async function runSetup(args: string[], json: boolean): Promise<number> {
       message: 'Ports to publish on 127.0.0.1 (comma-separated, optional)',
       placeholder: '3000, 5170-5180',
       defaultValue: '',
-      validate: value => value && !PORTS.test(value) ? 'Use ports or ranges like 3000, 5170-5180' : undefined,
+      validate: value => value && !PORTS.test(value)
+        ? 'Use ports or ranges like 3000, 5170-5180'
+        : undefined,
     })
     if (isCancel(portsAnswer))
       return cancelled()
@@ -125,8 +187,14 @@ async function runSetup(args: string[], json: boolean): Promise<number> {
     ports = portsAnswer.split(',').map(port => port.trim()).filter(Boolean)
   }
 
-  const { changes } = setup({ root: process.cwd(), image, ports })
-  process.stdout.write(changes.length ? changes.map(change => `✔ ${change}\n`).join('') : 'Already set up; nothing changed.\n')
+  const { changes } = setup({
+    root: process.cwd(),
+    image,
+    ports,
+  })
+  process.stdout.write(changes.length
+    ? changes.map(change => `✔ ${change}\n`).join('')
+    : 'Already set up; nothing changed.\n')
   process.stdout.write('\nNext: review dev-container.config.ts, then run `npx @antfu/dev-container up`.\n')
   return 0
 }

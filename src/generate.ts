@@ -39,7 +39,14 @@ function readEnvFiles(root: string, files: string[] | undefined, fallback: strin
 
 /** Where `{ env }` sources are looked up: the host environment, then the env files. */
 export function createLookup({ config, root, env = process.env }: GenerateOptions): SecretLookup {
-  return { root, env, envFile: { ...readEnvFiles(root, config.envFile, '.env'), ...readEnvFiles(root, config.envSecretFile, '.env.secret') } }
+  return {
+    root,
+    env,
+    envFile: {
+      ...readEnvFiles(root, config.envFile, '.env'),
+      ...readEnvFiles(root, config.envSecretFile, '.env.secret'),
+    },
+  }
 }
 
 /**
@@ -49,9 +56,19 @@ export function createLookup({ config, root, env = process.env }: GenerateOption
 export function generate({ config: userConfig, root, env = process.env }: GenerateOptions): Generated {
   const dir = join(root, '.dev-container')
   const secretFile = readEnvFiles(root, userConfig.envSecretFile, '.env.secret')
-  const lookup = { root, env, envFile: { ...readEnvFiles(root, userConfig.envFile, '.env'), ...secretFile } }
+  const lookup = {
+    root,
+    env,
+    envFile: {
+      ...readEnvFiles(root, userConfig.envFile, '.env'),
+      ...secretFile,
+    },
+  }
   const warnings: Diagnostic<unknown>[] = []
-  const config = { ...userConfig, secrets: activeSecrets(userConfig, lookup, warnings, Object.keys(secretFile)) }
+  const config = {
+    ...userConfig,
+    secrets: activeSecrets(userConfig, lookup, warnings, Object.keys(secretFile)),
+  }
   const envFiles = resolveEnvFiles(config, lookup)
 
   mkdirSync(join(dir, 'env'), { recursive: true })
@@ -107,10 +124,15 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
       continue
     const found = detect.find(name => lookupEnv(lookup, name))
     const from = setting?.from ?? (found && { env: found })
-    if (from)
-      claimed.push({ builtin, secret: { ...secret, from, rules: setting?.rules ?? secret.rules } })
-    else
+    if (from) {
+      claimed.push({
+        builtin,
+        secret: { ...secret, from, rules: setting?.rules ?? secret.rules },
+      })
+    }
+    else {
       warnings.push(diagnostics.DEV_CONTAINER_S2002({ builtin, envs: detect }))
+    }
   }
   claimed.push(...config.secrets.map(secret => ({ secret })))
 
@@ -124,8 +146,16 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
   }
   const read = envsRead(config)
   const unbound = fileVars.filter(env => !owners.has(env) && !read.has(env) && ENV_NAME.test(env))
-    .map((env): ResolvedSecret => ({ env, aliases: [], hosts: [], rules: [] }))
-  return [...claimed.map(({ secret }) => secret), ...unbound]
+    .map((env): ResolvedSecret => ({
+      env,
+      aliases: [],
+      hosts: [],
+      rules: [],
+    }))
+  return [
+    ...claimed.map(({ secret }) => secret),
+    ...unbound,
+  ]
 }
 
 /** The `gpg` builtin's key sources; an unset default one is simply off. */
@@ -133,7 +163,9 @@ export function gpgSources(config: ResolvedConfig): { privateKey: SecretSourceCo
   const setting = config.builtins.gpg
   if (!setting)
     return undefined
-  const given = setting === 'auto' ? {} : setting
+  const given = setting === 'auto'
+    ? {}
+    : setting
   return { privateKey: given.privateKey ?? { env: 'GPG_PRIVATE_KEY' }, publicKey: given.publicKey ?? { env: 'GPG_PUBLIC_KEY' } }
 }
 
@@ -141,15 +173,21 @@ export function gpgSources(config: ResolvedConfig): { privateKey: SecretSourceCo
 function envsRead(config: ResolvedConfig): Set<string> {
   const sources: SecretSourceConfig[] = [
     ...tailscaleNodes(config).map(node => node.authKey),
-    ...config.secrets.flatMap(secret => secret.from ? [secret.from] : []),
+    ...config.secrets.flatMap(secret => secret.from
+      ? [secret.from]
+      : []),
     ...BUILTIN_NAMES.flatMap((name) => {
       const builtin = config.builtins[name]
-      return builtin && builtin.from ? [builtin.from] : []
+      return builtin && builtin.from
+        ? [builtin.from]
+        : []
     }),
     ...Object.values(gpgSources(config) ?? {}),
     ...Object.values(config.services).flatMap(service => Object.values(service.env).filter(value => typeof value !== 'string')),
   ]
-  return new Set(sources.flatMap(source => 'env' in source ? [source.env] : []))
+  return new Set(sources.flatMap(source => 'env' in source
+    ? [source.env]
+    : []))
 }
 
 /** Resolves every secret up front so all missing ones are reported before anything is written. */
@@ -173,16 +211,28 @@ function resolveEnvFiles(config: ResolvedConfig, lookup: SecretLookup): Record<s
       attempt(secret.from ?? { env: secret.env }, `secret ${secret.env}`),
     ])),
   }
-  for (const node of tailscaleNodes(config))
-    files[node.name] = { TS_AUTHKEY: attempt(node.authKey, `${node.label}.authKey`) }
+  for (const node of tailscaleNodes(config)) {
+    files[node.name] = {
+      TS_AUTHKEY: attempt(node.authKey, `${node.label}.authKey`),
+    }
+  }
   for (const [name, service] of Object.entries(config.services)) {
-    const refs = Object.entries(service.env).flatMap(([key, value]) => typeof value === 'string' ? [] : [[key, value] as const])
+    const refs = Object.entries(service.env).flatMap(([key, value]) => typeof value === 'string'
+      ? []
+      : [
+          [key, value] as const,
+        ])
     // The file is written even when every reference is optional and unset, since compose requires it.
     if (refs.length) {
       files[name] = Object.fromEntries(refs.flatMap(([key, source]) =>
         'optional' in source && source.optional && 'env' in source && !lookupEnv(lookup, source.env)
           ? []
-          : [[key, attempt(source, `services.${name}.env.${key}`)]]))
+          : [
+              [
+                key,
+                attempt(source, `services.${name}.env.${key}`),
+              ],
+            ]))
     }
   }
 

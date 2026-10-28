@@ -33,10 +33,19 @@ export function resolveSource(source: SecretSourceConfig, lookup: SecretLookup, 
   }
   let value: string
   try {
-    value = execSync(source.command, { cwd: lookup.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+    value = execSync(source.command, {
+      cwd: lookup.root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim()
   }
   catch (error) {
-    throw diagnostics.DEV_CONTAINER_S2003({ label, command: source.command, reason: 'failed', cause: error })
+    throw diagnostics.DEV_CONTAINER_S2003({
+      label,
+      command: source.command,
+      reason: 'failed',
+      cause: error,
+    })
   }
   if (!value)
     throw diagnostics.DEV_CONTAINER_S2003({ label, command: source.command, reason: 'printed nothing' })

@@ -8,7 +8,12 @@ Inside the container: send the credential only to the hosts it belongs to. On th
 
 ```ts
 export default defineConfig({
-  secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev', 'uploads.acme.dev'] }],
+  secrets: [
+    {
+      env: 'ACME_KEY',
+      hosts: ['api.acme.dev', 'uploads.acme.dev']
+    }
+  ],
   // ...
 })
 ```

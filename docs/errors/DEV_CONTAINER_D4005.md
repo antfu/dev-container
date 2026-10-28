@@ -10,10 +10,16 @@ Make sure the image has `gpg` and `git`, that `builtins.gpg.user` names a user t
 export default defineConfig({
   builtins: {
     // 'auto' reads GPG_PRIVATE_KEY (and GPG_PUBLIC_KEY) from the env files; it is off when unset.
-    gpg: { user: 'node', services: ['agent'] },
+    gpg: {
+      user: 'node',
+      services: ['agent']
+    },
   },
   services: {
-    agent: { build: '.', git: { name: 'Ada', email: 'ada@example.com' } },
+    agent: {
+      build: '.',
+      git: { name: 'Ada', email: 'ada@example.com' }
+    },
   },
 })
 ```

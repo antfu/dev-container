@@ -13,7 +13,9 @@ const user = ref('')
 const privateKey = ref('')
 const logBox = useTemplateRef<HTMLElement>('logBox')
 
-const query = computed(() => user.value ? `?user=${encodeURIComponent(user.value)}` : '')
+const query = computed(() => user.value
+  ? `?user=${encodeURIComponent(user.value)}`
+  : '')
 const gpgSummary = computed(() => {
   if (gpgError.value)
     return gpgError.value
@@ -22,7 +24,9 @@ const gpgSummary = computed(() => {
   if (!gpg.value.installed)
     return 'gpg is not installed in this container.'
   const keys = gpg.value.keys.map(k => `${k.uid} (${k.fingerprint.slice(-16)})`).join(', ')
-  return `Signing is ${gpg.value.signing ? 'on' : 'off'}. ${keys ? `Keys: ${keys}` : 'No secret key.'}`
+  return `Signing is ${gpg.value.signing ? 'on' : 'off'}. ${keys
+    ? `Keys: ${keys}`
+    : 'No secret key.'}`
 })
 
 async function load(): Promise<void> {
@@ -51,7 +55,10 @@ async function run(action: () => Promise<void>): Promise<void> {
 
 function importKey() {
   return run(async () => {
-    await api(`/services/${props.name}/gpg`, { method: 'POST', body: JSON.stringify({ privateKey: privateKey.value, user: user.value || undefined }) })
+    await api(`/services/${props.name}/gpg`, {
+      method: 'POST',
+      body: JSON.stringify({ privateKey: privateKey.value, user: user.value || undefined }),
+    })
     privateKey.value = ''
   })
 }

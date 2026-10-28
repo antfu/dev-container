@@ -7,7 +7,10 @@ import { generate, loadConfig, setup } from '../src'
 describe('setup', () => {
   it('creates a working project', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dev-container-setup-'))
-    const { changes } = setup({ root, ports: ['3000', '5170-5172'] })
+    const { changes } = setup({
+      root,
+      ports: ['3000', '5170-5172'],
+    })
 
     expect(changes).toEqual([
       'created dev-container.config.ts',

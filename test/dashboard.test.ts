@@ -7,7 +7,9 @@ import { z } from 'zod'
 import { createDashboardApp } from '../src'
 
 const docker = fileURLToPath(new URL('fixtures/fake-docker.mjs', import.meta.url))
-const auth = { headers: { Authorization: 'Bearer secret-token' } }
+const auth = {
+  headers: { Authorization: 'Bearer secret-token' },
+}
 
 let tmp: string
 const invocations = () => readFileSync(join(tmp, 'log'), 'utf8').trim().split('\n')
@@ -39,15 +41,27 @@ async function waitForExit(pid: number) {
 
 describe('dashboard API', () => {
   it('lists the tailnet links', async () => {
-    const links = [{ name: 'agent:6767', url: 'https://agents.tail1234.ts.net' }]
-    const withLinks = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, links })
+    const links = [
+      { name: 'agent:6767', url: 'https://agents.tail1234.ts.net' },
+    ]
+    const withLinks = createDashboardApp({
+      dir: '/stack/.dev-container',
+      token: 'secret-token',
+      docker,
+      links,
+    })
     expect(await (await withLinks.request('/links', auth)).json()).toEqual({ links })
     expect(await (await app().request('/links', auth)).json()).toEqual({ links: [] })
   })
 
   it('runs the daemon\'s upgrade, and refuses without one', async () => {
     const upgrade = vi.fn(async () => 'deployed' as const)
-    const withDaemon = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, upgrade })
+    const withDaemon = createDashboardApp({
+      dir: '/stack/.dev-container',
+      token: 'secret-token',
+      docker,
+      upgrade,
+    })
     const response = await withDaemon.request('/upgrade', { method: 'POST', ...auth })
     expect(await response.json()).toEqual({ ok: true, result: 'deployed' })
     expect(upgrade).toHaveBeenCalledOnce()
@@ -61,16 +75,36 @@ describe('dashboard API', () => {
     const response = await app().request('/services')
     expect(response.status).toBe(401)
     expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4003' })
-    expect((await app().request('/services', { headers: { Authorization: 'Bearer wrong' } })).status).toBe(401)
+    expect((await app().request('/services', {
+      headers: { Authorization: 'Bearer wrong' },
+    })).status).toBe(401)
   })
 
   it('lists services', async () => {
     const response = await app().request('/services', auth)
     expect(await response.json()).toEqual({
       services: [
-        { name: 'broker', container: 'p-broker-1', state: 'running', health: 'healthy', status: 'Up 1 minute (healthy)' },
-        { name: 'agent', container: 'p-agent-1', state: 'running', health: '', status: 'Up 1 minute' },
-        { name: 'old', container: 'p-old-1', state: 'exited', health: '', status: 'Exited (0)' },
+        {
+          name: 'broker',
+          container: 'p-broker-1',
+          state: 'running',
+          health: 'healthy',
+          status: 'Up 1 minute (healthy)',
+        },
+        {
+          name: 'agent',
+          container: 'p-agent-1',
+          state: 'running',
+          health: '',
+          status: 'Up 1 minute',
+        },
+        {
+          name: 'old',
+          container: 'p-old-1',
+          state: 'exited',
+          health: '',
+          status: 'Exited (0)',
+        },
       ],
     })
   })
@@ -102,14 +136,19 @@ describe('dashboard API', () => {
 
   it('returns recent log lines', async () => {
     const response = await app().request('/services/agent/logs?tail=2', auth)
-    expect(await response.json()).toEqual({ lines: ['first', 'second'] })
+    expect(await response.json()).toEqual({
+      lines: ['first', 'second'],
+    })
     expect(invocations()).toEqual(['compose -f /stack/.dev-container/compose.yml logs --no-color --no-log-prefix --tail 2 agent'])
   })
 
   it('follows logs and stops docker when the client disconnects', async () => {
     const response = await app().request('/services/agent/logs?follow=1', auth)
     const events = await readEvents(response, 2)
-    expect(events).toEqual([{ event: 'log', data: 'line 0' }, { event: 'log', data: 'line 1' }])
+    expect(events).toEqual([
+      { event: 'log', data: 'line 0' },
+      { event: 'log', data: 'line 1' },
+    ])
     await waitForExit(Number(readFileSync(join(tmp, 'pid'), 'utf8')))
   })
 
@@ -132,14 +171,23 @@ describe('dashboard API', () => {
   })
 
   it('manages commit signing inside a service', async () => {
-    const get = async (path: string, init: RequestInit = {}) => (await app().request(path, { ...auth, ...init })).json()
+    const get = async (path: string, init: RequestInit = {}) => (await app().request(path, {
+      ...auth,
+      ...init,
+    })).json()
     expect(await get('/services/agent/gpg?user=node')).toEqual({
       installed: true,
       signing: true,
-      keys: [{ fingerprint: 'FPR1234', uid: 'Ada <ada@example.com>' }],
+      keys: [
+        { fingerprint: 'FPR1234', uid: 'Ada <ada@example.com>' },
+      ],
     })
     expect(await get('/services/agent/gpg/public')).toEqual({ publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nabc\n-----END PGP PUBLIC KEY BLOCK-----' })
-    const enabled = await app().request('/services/agent/gpg', { method: 'POST', headers: { ...auth.headers, 'content-type': 'application/json' }, body: JSON.stringify({ privateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----', user: 'node' }) })
+    const enabled = await app().request('/services/agent/gpg', {
+      method: 'POST',
+      headers: { ...auth.headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ privateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----', user: 'node' }),
+    })
     expect(await enabled.json()).toEqual({ ok: true, fingerprint: 'FPR1234' })
     expect(await get('/services/agent/gpg', { method: 'DELETE' })).toEqual({ ok: true })
     expect(invocations().filter(line => line.startsWith('compose')).map(line => line.split(' sh -c ')[0].replace('compose -f /stack/.dev-container/compose.yml ', ''))).toEqual([
@@ -162,16 +210,27 @@ describe('dashboard API', () => {
   it('surfaces docker errors', async () => {
     const response = await app().request('/services/missing/restart', { method: 'POST', ...auth })
     expect(response.status).toBe(502)
-    expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4002', why: 'docker failed: no such service: missing', docs: expect.stringContaining('DEV_CONTAINER_D4002.md') })
+    expect(await response.json()).toMatchObject({
+      name: 'DEV_CONTAINER_D4002',
+      why: 'docker failed: no such service: missing',
+      docs: expect.stringContaining('DEV_CONTAINER_D4002.md'),
+    })
   })
 
   it('reports a missing docker binary instead of crashing', async () => {
-    const broken = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker: join(tmpdir(), 'no-such-docker') })
+    const broken = createDashboardApp({
+      dir: '/stack/.dev-container',
+      token: 'secret-token',
+      docker: join(tmpdir(), 'no-such-docker'),
+    })
     const response = await broken.request('/services', auth)
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4001' })
     const events = await readEvents(await broken.request('/services/agent/logs?follow=1', auth), 1)
-    expect(events[0]).toMatchObject({ event: 'error', data: expect.stringContaining('DEV_CONTAINER_D4001') })
+    expect(events[0]).toMatchObject({
+      event: 'error',
+      data: expect.stringContaining('DEV_CONTAINER_D4001'),
+    })
   })
 
   it('rejects service names that could be read as flags', async () => {
@@ -181,9 +240,28 @@ describe('dashboard API', () => {
   })
 
   it('serves its OpenAPI document', async () => {
-    const doc = z.object({ paths: z.record(z.string(), z.object({})), components: z.object({ securitySchemes: z.object({}).loose() }) })
+    const doc = z.object({
+      paths: z.record(z.string(), z.object({})),
+      components: z.object({
+        securitySchemes: z.object({}).loose(),
+      }),
+    })
       .parse(await (await app().request('/openapi.json', auth)).json())
-    expect(Object.keys(doc.paths)).toEqual(['/services', '/links', '/stats', '/services/{name}/logs', '/restart', '/services/{name}/restart', '/update', '/upgrade', '/services/{name}/update', '/services/{name}/gpg', '/services/{name}/gpg/public'])
-    expect(doc.components.securitySchemes).toEqual({ bearer: { type: 'http', scheme: 'bearer' } })
+    expect(Object.keys(doc.paths)).toEqual([
+      '/services',
+      '/links',
+      '/stats',
+      '/services/{name}/logs',
+      '/restart',
+      '/services/{name}/restart',
+      '/update',
+      '/upgrade',
+      '/services/{name}/update',
+      '/services/{name}/gpg',
+      '/services/{name}/gpg/public',
+    ])
+    expect(doc.components.securitySchemes).toEqual({
+      bearer: { type: 'http', scheme: 'bearer' },
+    })
   })
 })

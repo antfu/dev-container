@@ -42,7 +42,9 @@ git config --global tag.gpgsign false`
 /** Accepts an armored key as is, or base64 of one, which fits a single dotenv line. */
 function decodeKey(value: string): string {
   const text = value.trim()
-  return text.includes('-----BEGIN') ? text : Buffer.from(text, 'base64').toString('utf8')
+  return text.includes('-----BEGIN')
+    ? text
+    : Buffer.from(text, 'base64').toString('utf8')
 }
 
 /** Imports the key into the container user's keyring and turns on commit and tag signing. Resolves to the fingerprint. */
@@ -83,9 +85,21 @@ export async function disableSigning(target: GitTarget): Promise<void> {
 }
 
 function exec({ dir, service, user, docker = 'docker' }: GitTarget, script: string, stdin = ''): Promise<string> {
-  const args = composeArgs(dir, ['exec', '-T', ...user ? ['-u', user] : [], service, 'sh', '-c', script])
+  const args = composeArgs(dir, [
+    'exec',
+    '-T',
+    ...user
+      ? ['-u', user]
+      : [],
+    service,
+    'sh',
+    '-c',
+    script,
+  ])
   return new Promise((resolve, reject) => {
-    const child = spawn(docker, args, { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(docker, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => {

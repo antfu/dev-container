@@ -18,13 +18,20 @@ const HostPattern = z.string().regex(/^(?:\*\.)?[a-z0-9.-]+(?::\d+)?$/i, 'must b
 
 const SecretSource = z.union([
   z.strictObject({ env: EnvName }),
-  z.strictObject({ command: z.string().min(1) }),
+  z.strictObject({
+    command: z.string().min(1),
+  }),
 ])
 
 /** A cage-visible reference; `optional` leaves the variable out instead of failing when it is unset. */
 const EnvReference = z.union([
-  z.strictObject({ env: EnvName, optional: z.boolean().optional() }),
-  z.strictObject({ command: z.string().min(1) }),
+  z.strictObject({
+    env: EnvName,
+    optional: z.boolean().optional(),
+  }),
+  z.strictObject({
+    command: z.string().min(1),
+  }),
 ])
 
 const Method = z.string().regex(/^[a-z]+$/i, 'must be an HTTP method').transform(method => method.toUpperCase())
@@ -32,7 +39,12 @@ const Method = z.string().regex(/^[a-z]+$/i, 'must be an HTTP method').transform
 /** One request rule for a brokered secret; omitted fields match anything. */
 const RequestRule = z.strictObject({
   action: z.enum(['allow', 'deny']),
-  method: z.union([Method, z.array(Method).min(1)]).transform(method => typeof method === 'string' ? [method] : method).optional(),
+  method: z.union([
+    Method,
+    z.array(Method).min(1),
+  ]).transform(method => typeof method === 'string'
+    ? [method]
+    : method).optional(),
   /** `*` matches within one segment, a `**` segment matches any number of them. */
   path: z.string().regex(/^\/[^?#]*$/, 'must start with `/` and have no query or fragment').optional(),
 })
@@ -50,7 +62,10 @@ const Secret = z.strictObject({
   /** Where the real value comes from on the host. Defaults to `{ env: <env> }`. */
   from: SecretSource.optional(),
   /** Configure a git credential helper that answers with the placeholder. */
-  git: z.strictObject({ host: z.string(), username: z.string() }).optional(),
+  git: z.strictObject({
+    host: z.string(),
+    username: z.string(),
+  }).optional(),
   rules: RequestRules,
 })
 
@@ -62,8 +77,16 @@ const PortRange = z.union([
 const Port = z.union([
   PortRange,
   // `true` serves the port on the tailnet on 443; a number serves it on that tailnet port instead.
-  z.strictObject({ port: PortRange, tailnet: z.union([z.boolean(), z.number().int().min(1).max(65535)]).default(false) }),
-]).transform(port => typeof port === 'object' ? port : { port, tailnet: false })
+  z.strictObject({
+    port: PortRange,
+    tailnet: z.union([
+      z.boolean(),
+      z.number().int().min(1).max(65535),
+    ]).default(false),
+  }),
+]).transform(port => typeof port === 'object'
+  ? port
+  : { port, tailnet: false })
 
 const Tailscale = z.strictObject({
   hostname: z.string().min(1),
@@ -74,15 +97,24 @@ const Tailscale = z.strictObject({
 
 const Build = z.union([
   z.string(),
-  z.strictObject({ context: z.string(), dockerfile: z.string().optional() }),
+  z.strictObject({
+    context: z.string(),
+    dockerfile: z.string().optional(),
+  }),
 ])
 
 const Service = z.strictObject({
   image: z.string().optional(),
   build: Build.optional(),
-  command: z.union([z.string(), z.array(z.string())]).optional(),
+  command: z.union([
+    z.string(),
+    z.array(z.string()),
+  ]).optional(),
   /** Plain values, or secret references that are deliberately visible inside the cage. */
-  env: z.record(EnvName, z.union([z.string(), EnvReference])).default({}),
+  env: z.record(EnvName, z.union([
+    z.string(),
+    EnvReference,
+  ])).default({}),
   ports: z.array(Port).default([]),
   volumes: z.array(z.string().refine(volume => !RESERVED_VOLUMES.has(volume.split(':')[0] ?? ''), 'uses a volume name reserved by dev-container')).default([]),
   /** `service:<name>` joins another caged service's network namespace, so both share `localhost`. */
@@ -102,7 +134,13 @@ const Service = z.strictObject({
   }).optional(),
 }).refine(service => service.image || service.build, 'requires `image` or `build`')
 
-const Builtin = z.union([z.literal(false), z.strictObject({ from: SecretSource.optional(), rules: RequestRules })])
+const Builtin = z.union([
+  z.literal(false),
+  z.strictObject({
+    from: SecretSource.optional(),
+    rules: RequestRules,
+  }),
+])
 
 /** Not a brokered secret: the key is piped into `gpg --import` inside each running service after `up`, never stored in its environment. */
 const Gpg = z.union([
@@ -121,15 +159,25 @@ const Gpg = z.union([
 ])
 
 const Egress = z.discriminatedUnion('policy', [
-  z.strictObject({ policy: z.literal('open') }),
-  z.strictObject({ policy: z.literal('allowlist'), allow: z.array(HostPattern).default([]) }),
+  z.strictObject({
+    policy: z.literal('open'),
+  }),
+  z.strictObject({
+    policy: z.literal('allowlist'),
+    allow: z.array(HostPattern).default([]),
+  }),
 ])
 
 const Config = z.strictObject({
   /** Compose project name. Defaults to the project directory name. */
   name: z.string().regex(/^[a-z0-9][\w-]*$/).optional(),
   /** Dotenv files consulted after the host environment for `{ env }` sources; later files win. Defaults to `.env` when present; a listed file must exist. */
-  envFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).optional(),
+  envFile: z.union([
+    z.string(),
+    z.array(z.string()),
+  ]).transform(files => typeof files === 'string'
+    ? [files]
+    : files).optional(),
   /**
    * Dotenv files whose every variable is brokered: the cage gets a placeholder, and the broker swaps
    * in the real value only towards the secret's bound hosts. A variable no builtin or `secrets` entry
@@ -137,12 +185,20 @@ const Config = z.strictObject({
    * Defaults to `.env.secret` when present; a listed file must exist.
    * Variables that a `{ env }` source reads, such as the Tailscale auth key, are not brokered.
    */
-  envSecretFile: z.union([z.string(), z.array(z.string())]).transform(files => typeof files === 'string' ? [files] : files).optional(),
+  envSecretFile: z.union([
+    z.string(),
+    z.array(z.string()),
+  ]).transform(files => typeof files === 'string'
+    ? [files]
+    : files).optional(),
   /** Host address published ports bind to. */
   bind: z.string().default('127.0.0.1'),
   /** `github` and `npm` are brokered automatically when their token is set; `false` turns one off, `from` overrides its source, `rules` limits its requests. */
   builtins: z.strictObject({
-    ...{ github: Builtin.optional(), npm: Builtin.optional() } satisfies Record<BuiltinName, z.ZodType>,
+    ...{
+      github: Builtin.optional(),
+      npm: Builtin.optional(),
+    } satisfies Record<BuiltinName, z.ZodType>,
     /** Signs commits inside the services: `'auto'` imports `GPG_PRIVATE_KEY` (and `GPG_PUBLIC_KEY`) when set. Off by default. */
     gpg: Gpg.optional(),
   }).default({}),
@@ -154,7 +210,12 @@ const Config = z.strictObject({
     /** Seconds between automatic upgrades. */
     interval: z.number().int().min(10).default(300),
     /** Shell command or commands run from the project root before `up`, such as `pnpm install --frozen-lockfile`. */
-    command: z.union([z.string(), z.array(z.string())]).transform(command => typeof command === 'string' ? [command] : command).default([]),
+    command: z.union([
+      z.string(),
+      z.array(z.string()),
+    ]).transform(command => typeof command === 'string'
+      ? [command]
+      : command).default([]),
   }).default({ auto: false, interval: 300, command: [] }),
   egress: Egress.default({ policy: 'open' }),
   /** The default node, for services without their own `tailscale`. */
@@ -210,17 +271,45 @@ export function tailscaleNodes(config: ResolvedConfig): TailscaleNode[] {
   const fallback = config.tailscale?.authKey ?? DEFAULT_AUTH_KEY
   const entries = Object.entries(config.services)
   // One tailnet, so one domain: whichever node names it serves the rest.
-  const domain = [config.tailscale, config.dashboard.tailscale, ...entries.map(([, { tailscale }]) => tailscale)].find(t => t?.domain)?.domain
+  const domain = [
+    config.tailscale,
+    config.dashboard.tailscale,
+    ...entries.map(([, { tailscale }]) => tailscale),
+  ].find(t => t?.domain)?.domain
   const nodes: TailscaleNode[] = entries.flatMap(([service, { tailscale }]) => tailscale
-    ? [{ name: `${RESERVED_PREFIX}${service}`, hostname: tailscale.hostname, domain, authKey: tailscale.authKey ?? fallback, label: `services.${service}.tailscale`, services: [service] }]
+    ? [
+        {
+          name: `${RESERVED_PREFIX}${service}`,
+          hostname: tailscale.hostname,
+          domain,
+          authKey: tailscale.authKey ?? fallback,
+          label: `services.${service}.tailscale`,
+          services: [service],
+        },
+      ]
     : [])
   if (config.dashboard.tailscale) {
     const { tailscale, tailnetPort, port } = config.dashboard
-    nodes.push({ name: `${RESERVED_PREFIX}dashboard`, hostname: tailscale.hostname, domain, authKey: tailscale.authKey ?? fallback, label: 'dashboard.tailscale', services: [], dashboard: { tailnetPort, port } })
+    nodes.push({
+      name: `${RESERVED_PREFIX}dashboard`,
+      hostname: tailscale.hostname,
+      domain,
+      authKey: tailscale.authKey ?? fallback,
+      label: 'dashboard.tailscale',
+      services: [],
+      dashboard: { tailnetPort, port },
+    })
   }
   if (config.tailscale) {
     const services = entries.filter(([, { tailscale }]) => !tailscale).map(([service]) => service)
-    nodes.unshift({ name: 'tailscale', hostname: config.tailscale.hostname, domain, authKey: fallback, label: 'tailscale', services })
+    nodes.unshift({
+      name: 'tailscale',
+      hostname: config.tailscale.hostname,
+      domain,
+      authKey: fallback,
+      label: 'tailscale',
+      services,
+    })
   }
   return nodes
 }
@@ -239,7 +328,9 @@ export function resolveConfig(config: UserConfig, file?: string): ResolvedConfig
     const issues = result.error.issues.map(issue => diagnostics.DEV_CONTAINER_C1002({
       path: issue.path.map(String).join('.'),
       message: issue.message,
-      sources: file ? [file] : undefined,
+      sources: file
+        ? [file]
+        : undefined,
     }))
     throw new AggregateError(issues, 'Invalid dev-container config')
   }
@@ -249,12 +340,18 @@ export function resolveConfig(config: UserConfig, file?: string): ResolvedConfig
 /** Loads `dev-container.config.*`; `root` is the directory containing it. */
 export async function loadConfig(cwd = process.cwd()): Promise<{ config: ResolvedConfig, root: string, file: string }> {
   const loader = createConfigLoader<UserConfig>({
-    sources: [{ files: 'dev-container.config' }],
+    sources: [
+      { files: 'dev-container.config' },
+    ],
     cwd,
   })
   const { config, sources } = await loader.load()
   const [file] = sources
   if (!file)
     throw diagnostics.DEV_CONTAINER_C1001({ cwd })
-  return { config: resolveConfig(config, file), root: dirname(file), file }
+  return {
+    config: resolveConfig(config, file),
+    root: dirname(file),
+    file,
+  }
 }

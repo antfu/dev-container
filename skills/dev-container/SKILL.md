@@ -60,18 +60,32 @@ import type { UserConfig } from '@antfu/dev-container'
 
 export default {
   builtins: { npm: false }, // github/npm are on whenever their token is set
-  secrets: [{
-    env: 'ACME_KEY',
-    hosts: ['api.acme.dev'], // brokered, placeholder in the cage
-    rules: [{ action: 'allow', method: 'GET' }, { action: 'deny' }], // first match wins; unmatched is allowed
-  }],
-  egress: { policy: 'allowlist', allow: ['registry.npmjs.org'] }, // default: { policy: 'open' }
+  secrets: [
+    {
+      env: 'ACME_KEY',
+      hosts: ['api.acme.dev'], // brokered, placeholder in the cage
+      rules: [
+        { action: 'allow', method: 'GET' },
+        { action: 'deny' }
+      ], // first match wins; unmatched is allowed
+    }
+  ],
+  egress: {
+    policy: 'allowlist',
+    allow: ['registry.npmjs.org']
+  }, // default: { policy: 'open' }
   services: {
     agent: {
       image: 'node:24',
       command: ['sleep', 'infinity'],
-      env: { ANTHROPIC_API_KEY: { env: 'ANTHROPIC_API_KEY' } }, // real value, visible in the cage
-      ports: [3000, '5170-5180', { port: 6767, tailnet: true }],
+      env: {
+        ANTHROPIC_API_KEY: { env: 'ANTHROPIC_API_KEY' }
+      }, // real value, visible in the cage
+      ports: [
+        3000,
+        '5170-5180',
+        { port: 6767, tailnet: true }
+      ],
       volumes: ['./:/workspace'],
       persist: ['/root'],
       // network: 'service:browser', // share another caged service's localhost

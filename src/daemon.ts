@@ -65,15 +65,20 @@ export function runDaemon({ config, root, host, port, onWarnings, onUpgraded = (
   if (config.selfUpgrade.auto) {
     timer = setInterval(() => {
       upgrade(false).catch((error: unknown) => {
-        process.stderr.write(`Upgrade failed, retrying in ${config.selfUpgrade.interval}s: ${error instanceof Error ? error.message : String(error)}\n`)
+        process.stderr.write(`Upgrade failed, retrying in ${config.selfUpgrade.interval}s: ${error instanceof Error
+          ? error.message
+          : String(error)}\n`)
       })
     }, config.selfUpgrade.interval * 1000)
   }
 
-  return { server, close: () => {
-    clearInterval(timer)
-    server.close()
-  } }
+  return {
+    server,
+    close: () => {
+      clearInterval(timer)
+      server.close()
+    },
+  }
 }
 
 const quote = (value: string): string => `'${value.replaceAll(`'`, `'\\''`)}'`
@@ -148,13 +153,22 @@ function tryRun(file: string, args: string[]): void {
 
 /** Installs the daemon so it starts at login and restarts when it exits. Returns the unit file. */
 export function installDaemon({ root, name }: { root: string, name: string }): string {
-  const input = { name, root, node: process.execPath, cli: process.argv[1] ?? '' }
+  const input = {
+    name,
+    root,
+    node: process.execPath,
+    cli: process.argv[1] ?? '',
+  }
   mkdirSync(join(root, '.dev-container'), { recursive: true })
   if (process.platform === 'darwin') {
     tryRun('launchctl', ['bootout', `${domain()}/${labelOf(name)}`])
     const file = plistPath(name)
     writeFileSync(file, renderPlist(input))
-    execFileSync('launchctl', ['bootstrap', domain(), file], { stdio: 'inherit' })
+    execFileSync('launchctl', [
+      'bootstrap',
+      domain(),
+      file,
+    ], { stdio: 'inherit' })
     return file
   }
   if (process.platform === 'linux') {
@@ -162,7 +176,12 @@ export function installDaemon({ root, name }: { root: string, name: string }): s
     mkdirSync(join(homedir(), '.config', 'systemd', 'user'), { recursive: true })
     writeFileSync(file, renderSystemdUnit(input))
     execFileSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'inherit' })
-    execFileSync('systemctl', ['--user', 'enable', '--now', unitName(name)], { stdio: 'inherit' })
+    execFileSync('systemctl', [
+      '--user',
+      'enable',
+      '--now',
+      unitName(name),
+    ], { stdio: 'inherit' })
     return file
   }
   return unsupported()
@@ -174,7 +193,12 @@ export function uninstallDaemon(name: string): void {
     rmSync(plistPath(name), { force: true })
   }
   else if (process.platform === 'linux') {
-    tryRun('systemctl', ['--user', 'disable', '--now', unitName(name)])
+    tryRun('systemctl', [
+      '--user',
+      'disable',
+      '--now',
+      unitName(name),
+    ])
     rmSync(unitPath(name), { force: true })
     tryRun('systemctl', ['--user', 'daemon-reload'])
   }

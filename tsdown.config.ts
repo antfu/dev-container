@@ -7,7 +7,9 @@ export default defineConfig({
     'src/cli.ts',
   ],
   dts: true,
-  exports: { exclude: ['cli'] },
+  exports: {
+    exclude: ['cli'],
+  },
   // The API snapshot records chunk file names; keep them stable across builds.
   hash: false,
   publint: true,

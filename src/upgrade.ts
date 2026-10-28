@@ -29,11 +29,19 @@ const git = (root: string, args: string[]): string => execFileSync('git', args, 
 export async function selfUpgrade({ config, root, force = false, onWarnings }: UpgradeOptions): Promise<'up-to-date' | 'deployed'> {
   const stateFile = join(root, '.dev-container', 'deployed')
   execFileSync('git', ['pull', '--ff-only'], { cwd: root, stdio: 'inherit' })
-  if (existsSync(join(root, '.gitmodules')))
-    execFileSync('git', ['submodule', 'update', '--init', '--recursive'], { cwd: root, stdio: 'inherit' })
+  if (existsSync(join(root, '.gitmodules'))) {
+    execFileSync('git', [
+      'submodule',
+      'update',
+      '--init',
+      '--recursive',
+    ], { cwd: root, stdio: 'inherit' })
+  }
 
   const head = git(root, ['rev-parse', 'HEAD'])
-  const deployed = existsSync(stateFile) ? readFileSync(stateFile, 'utf8').trim() : undefined
+  const deployed = existsSync(stateFile)
+    ? readFileSync(stateFile, 'utf8').trim()
+    : undefined
   if (!planUpgrade({ deployed, head, force }))
     return 'up-to-date'
 

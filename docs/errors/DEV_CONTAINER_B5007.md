@@ -12,7 +12,10 @@ export default defineConfig({
     github: {
       rules: [
         { action: 'allow', path: '/repos/antfu/dev-container/**' },
-        { action: 'deny', method: ['POST', 'PUT', 'PATCH', 'DELETE'] },
+        {
+          action: 'deny',
+          method: ['POST', 'PUT', 'PATCH', 'DELETE']
+        },
       ],
     },
   },

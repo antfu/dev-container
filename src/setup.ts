@@ -40,7 +40,9 @@ export function setup({ root, image = 'node:24', ports = [] }: SetupOptions): Se
 
 function fillSecrets(file: string, changes: string[]): void {
   const existed = existsSync(file)
-  const before = existed ? readFileSync(file, 'utf8') : '# Brokered: the container only ever sees placeholders for these.\n'
+  const before = existed
+    ? readFileSync(file, 'utf8')
+    : '# Brokered: the container only ever sees placeholders for these.\n'
   const secrets = ensureKey(ensureKey(before, 'GH_TOKEN'), 'NPM_TOKEN')
   if (!existed || secrets !== before) {
     writeFileSync(file, secrets, { mode: 0o600 })
@@ -50,21 +52,29 @@ function fillSecrets(file: string, changes: string[]): void {
 }
 
 function ignore(file: string, changes: string[]): void {
-  const content = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  const content = existsSync(file)
+    ? readFileSync(file, 'utf8')
+    : ''
   const lines = new Set(content.split(/\r?\n/).map(line => line.trim().replace(/^\//, '').replace(/\/$/, '')))
   const missing = IGNORED.filter(entry => !lines.has(entry.replace(/\/$/, '')))
   if (!missing.length)
     return
-  writeFileSync(file, `${content}${content && !content.endsWith('\n') ? '\n' : ''}${missing.join('\n')}\n`)
+  writeFileSync(file, `${content}${content && !content.endsWith('\n')
+    ? '\n'
+    : ''}${missing.join('\n')}\n`)
   changes.push(`added ${missing.join(', ')} to .gitignore`)
 }
 
 function ensureKey(file: string, key: string): string {
-  return new RegExp(`^${key}=`, 'm').test(file) ? file : `${file}${key}=\n`
+  return new RegExp(`^${key}=`, 'm').test(file)
+    ? file
+    : `${file}${key}=\n`
 }
 
 function starterConfig(image: string, ports: string[]): string {
-  const portList = ports.map(port => /^\d+$/.test(port) ? port : `'${port}'`).join(', ')
+  const portList = ports.map(port => /^\d+$/.test(port)
+    ? port
+    : `'${port}'`).join(', ')
   return `import type { UserConfig } from '@antfu/dev-container'
 
 // GH_TOKEN and NPM_TOKEN from .env.secret are brokered: the container only sees placeholders.
@@ -76,7 +86,9 @@ export default {
       image: '${image}',
       command: ['sleep', 'infinity'],
       volumes: ['./:/workspace'],
-      persist: ['/root'],${portList ? `\n      ports: [${portList}],` : ''}
+      persist: ['/root'],${portList
+        ? `\n      ports: [${portList}],`
+        : ''}
     },
   },
 } satisfies UserConfig

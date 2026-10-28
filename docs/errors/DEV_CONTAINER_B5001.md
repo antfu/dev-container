@@ -8,7 +8,10 @@ If the host is needed, add it on the host:
 
 ```ts
 export default defineConfig({
-  egress: { policy: 'allowlist', allow: ['registry.npmjs.org', '*.example.com'] },
+  egress: {
+    policy: 'allowlist',
+    allow: ['registry.npmjs.org', '*.example.com']
+  },
   // ...
 })
 ```

@@ -9,7 +9,15 @@ const cli = fileURLToPath(new URL('../dist/cli.mjs', import.meta.url))
 
 function run(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   try {
-    return { code: 0, output: execFileSync(process.execPath, [cli, ...args], { cwd, env: { PATH: process.env.PATH, ...env }, encoding: 'utf8', stdio: 'pipe' }) }
+    return {
+      code: 0,
+      output: execFileSync(process.execPath, [cli, ...args], {
+        cwd,
+        env: { PATH: process.env.PATH, ...env },
+        encoding: 'utf8',
+        stdio: 'pipe',
+      }),
+    }
   }
   catch (error) {
     const { status, stderr } = error as { status: number, stderr: string }

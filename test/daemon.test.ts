@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { renderPlist, renderSystemdUnit } from '../src/daemon'
 
-const input = { name: 'containers', root: `/Users/me/it's here`, node: '/usr/bin/node', cli: '/p/cli.mjs' }
+const input = {
+  name: 'containers',
+  root: `/Users/me/it's here`,
+  node: '/usr/bin/node',
+  cli: '/p/cli.mjs',
+}
 
 describe('daemon', () => {
   it('renders a launchd agent that keeps the daemon alive through a login shell', () => {

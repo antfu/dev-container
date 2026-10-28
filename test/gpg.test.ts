@@ -20,8 +20,20 @@ afterEach(() => {
 
 function run(builtins: object, env: NodeJS.ProcessEnv) {
   const warnings: unknown[] = []
-  const config = resolveConfig({ builtins: { github: false, npm: false, ...builtins }, services: { agent: { image: 'x' }, site: { image: 'y' } } })
-  return up({ config, root: mkdtempSync(join(tmpdir(), 'dev-container-root-')), env, docker, onWarnings: w => warnings.push(...w) }).then(code => ({ code, warnings }))
+  const config = resolveConfig({
+    builtins: { github: false, npm: false, ...builtins },
+    services: {
+      agent: { image: 'x' },
+      site: { image: 'y' },
+    },
+  })
+  return up({
+    config,
+    root: mkdtempSync(join(tmpdir(), 'dev-container-root-')),
+    env,
+    docker,
+    onWarnings: w => warnings.push(...w),
+  }).then(code => ({ code, warnings }))
 }
 
 describe('gpg builtin', () => {
@@ -41,8 +53,14 @@ describe('gpg builtin', () => {
   })
 
   it('reports a missing key as a warning without failing the run', async () => {
-    const { code, warnings } = await run({ gpg: { privateKey: { env: 'MISSING_KEY' } } }, {})
+    const { code, warnings } = await run({
+      gpg: {
+        privateKey: { env: 'MISSING_KEY' },
+      },
+    }, {})
     expect(code).toBe(0)
-    expect(warnings).toEqual([expect.objectContaining({ name: 'DEV_CONTAINER_S2001' })])
+    expect(warnings).toEqual([
+      expect.objectContaining({ name: 'DEV_CONTAINER_S2001' }),
+    ])
   })
 })

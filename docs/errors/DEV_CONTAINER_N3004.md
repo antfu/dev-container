@@ -11,7 +11,10 @@ export default defineConfig({
   services: {
     agent: {
       image: 'node:24',
-      ports: [{ port: 3000, tailnet: true }, { port: 3001, tailnet: true }],
+      ports: [
+        { port: 3000, tailnet: true },
+        { port: 3001, tailnet: true }
+      ],
     },
   },
 })

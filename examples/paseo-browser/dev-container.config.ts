@@ -8,7 +8,13 @@ import { defineConfig } from '@antfu/dev-container'
 export default defineConfig({
   tailscale: { hostname: 'paseo' },
   // GH_TOKEN is brokered as usual; agents can still use it for anything but deleting a repo.
-  builtins: { github: { rules: [{ action: 'deny', method: 'DELETE', path: '/repos/*/*' }] } },
+  builtins: {
+    github: {
+      rules: [
+        { action: 'deny', method: 'DELETE', path: '/repos/*/*' },
+      ],
+    },
+  },
   services: {
     browser: {
       build: './browser',
@@ -25,7 +31,9 @@ export default defineConfig({
         // Relaunch Chromium when its window is closed, or agents lose CDP until the next restart.
         RESTART_APP: 'true',
       },
-      ports: [{ port: 6900, tailnet: 6900 }],
+      ports: [
+        { port: 6900, tailnet: 6900 },
+      ],
       persist: ['/config'],
       compose: { shm_size: '1gb' },
     },
@@ -39,7 +47,9 @@ export default defineConfig({
         OPENAI_API_KEY: { env: 'OPENAI_API_KEY' },
         AGENT_BROWSER_CDP: '9222',
       },
-      ports: [{ port: 6767, tailnet: true }],
+      ports: [
+        { port: 6767, tailnet: true },
+      ],
       volumes: ['./workspace:/workspace'],
       persist: ['/home/paseo'],
     },

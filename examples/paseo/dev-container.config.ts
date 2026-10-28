@@ -20,7 +20,9 @@ export default defineConfig({
         // e.g. https://paseo.<tailnet>.ts.net. Leave it unset to skip it.
         PASEO_CORS_ORIGINS: { env: 'PASEO_CORS_ORIGINS', optional: true },
       },
-      ports: [{ port: 6767, tailnet: true }],
+      ports: [
+        { port: 6767, tailnet: true },
+      ],
       volumes: ['./workspace:/workspace'],
       persist: ['/home/paseo'],
     },

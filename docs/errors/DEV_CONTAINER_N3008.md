@@ -10,8 +10,18 @@ Give all but one of them a tailnet port of their own, or give a service its own 
 export default defineConfig({
   tailscale: { hostname: 'agents' },
   services: {
-    paseo: { image: 'ghcr.io/getpaseo/paseo:latest', ports: [{ port: 6767, tailnet: true }] },
-    browser: { build: './browser', ports: [{ port: 6900, tailnet: 6900 }] },
+    paseo: {
+      image: 'ghcr.io/getpaseo/paseo:latest',
+      ports: [
+        { port: 6767, tailnet: true }
+      ]
+    },
+    browser: {
+      build: './browser',
+      ports: [
+        { port: 6900, tailnet: 6900 }
+      ]
+    },
   },
 })
 ```

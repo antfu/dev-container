@@ -59,7 +59,9 @@ export default defineConfig({
 
   // github and npm are brokered automatically when their token is set.
   builtins: {
-    npm: { from: { command: 'op read op://dev/npm/token' } }, // another source
+    npm: {
+      from: { command: 'op read op://dev/npm/token' }
+    }, // another source
     // github: false, // turn one off
   },
 
@@ -69,12 +71,17 @@ export default defineConfig({
       env: 'ACME_KEY',
       hosts: ['api.acme.dev', '*.acme.dev:8443'],
       // Optional; first match wins, unmatched requests are allowed.
-      rules: [{ action: 'deny', method: 'DELETE', path: '/v1/projects/**' }],
+      rules: [
+        { action: 'deny', method: 'DELETE', path: '/v1/projects/**' }
+      ],
     },
   ],
 
   // 'open' (default) or an allowlist; secret hosts are always allowed.
-  egress: { policy: 'allowlist', allow: ['registry.npmjs.org', '*.githubusercontent.com'] },
+  egress: {
+    policy: 'allowlist',
+    allow: ['registry.npmjs.org', '*.githubusercontent.com']
+  },
 
   // Optional sidecar; TS_AUTHKEY comes from the env unless `authKey` says otherwise.
   // A service can set its own `tailscale` to get a separate node.
@@ -89,7 +96,11 @@ export default defineConfig({
         ANTHROPIC_API_KEY: { env: 'ANTHROPIC_API_KEY' }, // resolved on the host, visible in the cage
         PASEO_PASSWORD: { command: 'cat ~/.paseo-password' },
       },
-      ports: [3000, '5170-5180', { port: 6767, tailnet: true }],
+      ports: [
+        3000,
+        '5170-5180',
+        { port: 6767, tailnet: true }
+      ],
       volumes: ['./projects:/workspace'],
       persist: ['/home/paseo'], // kept in .dev-container/state/agent/
       // network: 'service:browser', // share another caged service's localhost
@@ -131,7 +142,12 @@ A service's `git: { name, email }` sets `GIT_AUTHOR_*` and `GIT_COMMITTER_*`. Fo
 export default defineConfig({
   // 'auto' reads GPG_PRIVATE_KEY (and GPG_PUBLIC_KEY) from the env files, and is off when it is unset.
   builtins: { gpg: 'auto' },
-  services: { agent: { build: '.', git: { name: 'Ada', email: 'ada@example.com' } } },
+  services: {
+    agent: {
+      build: '.',
+      git: { name: 'Ada', email: 'ada@example.com' }
+    }
+  },
 })
 ```
 
@@ -146,7 +162,10 @@ export default defineConfig({
   builtins: {
     github: {
       rules: [
-        { action: 'allow', method: ['GET', 'HEAD'] },
+        {
+          action: 'allow',
+          method: ['GET', 'HEAD']
+        },
         { action: 'allow', path: '/repos/antfu/dev-container/**' },
         { action: 'deny' },
       ],
@@ -187,8 +206,20 @@ To give a service its own MagicDNS name, set `tailscale` on the service. It gets
 ```ts
 export default defineConfig({
   services: {
-    paseo: { image: 'ghcr.io/getpaseo/paseo:latest', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } },
-    vi: { build: './vi', ports: [{ port: 5656, tailnet: true }], tailscale: { hostname: 'vi' } },
+    paseo: {
+      image: 'ghcr.io/getpaseo/paseo:latest',
+      ports: [
+        { port: 6767, tailnet: true }
+      ],
+      tailscale: { hostname: 'paseo' }
+    },
+    vi: {
+      build: './vi',
+      ports: [
+        { port: 5656, tailnet: true }
+      ],
+      tailscale: { hostname: 'vi' }
+    },
   },
 })
 ```
@@ -278,7 +309,12 @@ To reach the dashboard over the tailnet, give the dashboard server a node of its
 
 ```ts
 export default defineConfig({
-  dashboard: { port: 7357, host: '127.0.0.1', tailscale: { hostname: 'dashboard' }, tailnetPort: 443 },
+  dashboard: {
+    port: 7357,
+    host: '127.0.0.1',
+    tailscale: { hostname: 'dashboard' },
+    tailnetPort: 443
+  },
 })
 ```
 

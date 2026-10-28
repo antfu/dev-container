@@ -102,16 +102,26 @@ export function tailscaleLinks(config: ResolvedConfig): TailscaleLink[] {
   const domain = nodes[0]?.domain
   if (!domain)
     return []
-  const url = (node: TailscaleNode, port: number): string => `https://${node.hostname}.${domain}${port === 443 ? '' : `:${port}`}`
+  const url = (node: TailscaleNode, port: number): string => `https://${node.hostname}.${domain}${port === 443
+    ? ''
+    : `:${port}`}`
   const links: TailscaleLink[] = []
   for (const node of nodes) {
-    if (node.dashboard)
-      links.push({ name: 'dashboard', url: url(node, node.dashboard.tailnetPort) })
+    if (node.dashboard) {
+      links.push({
+        name: 'dashboard',
+        url: url(node, node.dashboard.tailnetPort),
+      })
+    }
   }
   for (const { service, start, node: name, tailnetPort = TAILNET_PORT } of collectPorts(config, nodes)) {
     const node = nodes.find(n => n.name === name)
-    if (node)
-      links.push({ name: `${service}:${start}`, url: url(node, tailnetPort) })
+    if (node) {
+      links.push({
+        name: `${service}:${start}`,
+        url: url(node, tailnetPort),
+      })
+    }
   }
   return links
 }
@@ -132,7 +142,9 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const usesDashboard = Object.values(config.services).some(s => s.dashboard)
   const persistDirs: string[] = []
 
-  const allow = config.egress.policy === 'allowlist' ? [...config.egress.allow] : []
+  const allow = config.egress.policy === 'allowlist'
+    ? [...config.egress.allow]
+    : []
   if (usesDashboard)
     allow.push(`${DASHBOARD_HOST}:${config.dashboard.port}`)
   const rules: BrokerRules = {
@@ -142,25 +154,45 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       name: secret.env,
       placeholder: placeholderOf(ctx, secret.env),
       hosts: secret.hosts,
-      rules: secret.rules.map(({ action, method, path }) => ({ action, ...method && { methods: method }, ...path && { path } })),
+      rules: secret.rules.map(({ action, method, path }) => ({
+        action,
+        ...method && { methods: method },
+        ...path && { path },
+      })),
     })),
   }
 
   const services: Record<string, ComposeService> = {
     broker: {
-      build: { context: join(ctx.assets, 'services', 'broker') },
+      build: {
+        context: join(ctx.assets, 'services', 'broker'),
+      },
       networks: ['caged', 'egress'],
-      env_file: [{ path: envFilePath(ctx.dir, 'broker'), required: true }],
+      env_file: [
+        {
+          path: envFilePath(ctx.dir, 'broker'),
+          required: true,
+        },
+      ],
       // Passed inline rather than as a file so new placeholders make compose recreate the broker.
-      environment: { DEV_CONTAINER_RULES: escapeCompose(JSON.stringify(rules)) },
+      environment: {
+        DEV_CONTAINER_RULES: escapeCompose(JSON.stringify(rules)),
+      },
       volumes: [
         'broker-ca:/home/mitmproxy/.mitmproxy',
         `ca:${CA_DIR}`,
       ],
-      ...usesDashboard && { extra_hosts: [`${DASHBOARD_HOST}:host-gateway`] },
+      ...usesDashboard && {
+        extra_hosts: [`${DASHBOARD_HOST}:host-gateway`],
+      },
       sysctls: NO_FORWARDING,
       healthcheck: {
-        test: ['CMD', 'python3', '-c', `import os,socket;assert os.path.exists('${CA_CERT}');socket.create_connection(('127.0.0.1',8080),2)`],
+        test: [
+          'CMD',
+          'python3',
+          '-c',
+          `import os,socket;assert os.path.exists('${CA_CERT}');socket.create_connection(('127.0.0.1',8080),2)`,
+        ],
         interval: '2s',
         timeout: '3s',
         retries: 30,
@@ -181,11 +213,15 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
 
   if (ports.length) {
     services.relay = {
-      build: { context: join(ctx.assets, 'services', 'relay') },
+      build: {
+        context: join(ctx.assets, 'services', 'relay'),
+      },
       command: ports.map(p => `${p.target}:${formatRange(p)}`),
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
-      ports: ports.map(p => `${config.bind.includes(':') ? `[${config.bind}]` : config.bind}:${formatRange(p)}:${formatRange(p)}`),
+      ports: ports.map(p => `${config.bind.includes(':')
+        ? `[${config.bind}]`
+        : config.bind}:${formatRange(p)}:${formatRange(p)}`),
       restart: 'unless-stopped',
     }
   }
@@ -195,11 +231,20 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
     const serve: TailscaleServe = tailscaleServe[node.name] = { TCP: {}, Web: {} }
     if (node.dashboard)
       serve.TCP[node.dashboard.tailnetPort] = { HTTPS: true }
-    if (node.dashboard)
-      serve.Web[`\${TS_CERT_DOMAIN}:${node.dashboard.tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${DASHBOARD_HOST}:${node.dashboard.port}` } } }
+    if (node.dashboard) {
+      serve.Web[`\${TS_CERT_DOMAIN}:${node.dashboard.tailnetPort}`] = {
+        Handlers: {
+          '/': { Proxy: `http://${DASHBOARD_HOST}:${node.dashboard.port}` },
+        },
+      }
+    }
     for (const { target, start, tailnetPort = TAILNET_PORT } of ports.filter(p => p.node === node.name)) {
       serve.TCP[tailnetPort] = { HTTPS: true }
-      serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
+      serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = {
+        Handlers: {
+          '/': { Proxy: `http://${target}:${start}` },
+        },
+      }
     }
     const state = join(ctx.dir, 'state', node.name)
     persistDirs.push(state)
@@ -207,8 +252,15 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       image: TAILSCALE_IMAGE,
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
-      env_file: [{ path: envFilePath(ctx.dir, node.name), required: true }],
-      ...node.dashboard && { extra_hosts: [`${DASHBOARD_HOST}:host-gateway`] },
+      env_file: [
+        {
+          path: envFilePath(ctx.dir, node.name),
+          required: true,
+        },
+      ],
+      ...node.dashboard && {
+        extra_hosts: [`${DASHBOARD_HOST}:host-gateway`],
+      },
       environment: {
         TS_HOSTNAME: node.hostname,
         TS_STATE_DIR: '/var/lib/tailscale',
@@ -229,8 +281,15 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       name: config.name ?? slugify(ctx.root.split(/[\\/]/).pop() || 'dev-container').toLowerCase(),
       services,
       // `caged` has no route out: the broker is the only way to reach anything.
-      networks: { caged: { internal: true }, egress: {} },
-      volumes: Object.fromEntries(['ca', 'broker-ca', ...namedVolumes(config)].map(name => [name, {}])),
+      networks: {
+        caged: { internal: true },
+        egress: {},
+      },
+      volumes: Object.fromEntries([
+        'ca',
+        'broker-ca',
+        ...namedVolumes(config),
+      ].map(name => [name, {}])),
     },
     rules,
     tailscaleServe,
@@ -267,31 +326,61 @@ function cagedService(
     ...service.image && { image: service.image },
     ...service.build && {
       build: typeof service.build === 'string'
-        ? { context: resolve(ctx.root, service.build) }
-        : { ...service.build, context: resolve(ctx.root, service.build.context) },
+        ? {
+            context: resolve(ctx.root, service.build),
+          }
+        : {
+            ...service.build,
+            context: resolve(ctx.root, service.build.context),
+          },
     },
     ...service.command !== undefined && {
-      command: typeof service.command === 'string' ? escapeCompose(service.command) : service.command.map(escapeCompose),
+      command: typeof service.command === 'string'
+        ? escapeCompose(service.command)
+        : service.command.map(escapeCompose),
     },
-    environment: Object.fromEntries(Object.entries(environment).map(([k, v]) => [k, escapeCompose(v)])),
-    ...hasSecretEnv && { env_file: [{ path: envFilePath(ctx.dir, name), required: true }] },
-    ...service.network ? { network_mode: service.network } : { networks: ['caged'] },
+    environment: Object.fromEntries(Object.entries(environment).map(([k, v]) => [
+      k,
+      escapeCompose(v),
+    ])),
+    ...hasSecretEnv && {
+      env_file: [
+        {
+          path: envFilePath(ctx.dir, name),
+          required: true,
+        },
+      ],
+    },
+    ...service.network
+      ? { network_mode: service.network }
+      : {
+          networks: ['caged'],
+        },
     volumes: [
       `ca:${CA_DIR}:ro`,
       ...service.volumes.map(volume => resolveVolume(ctx.root, volume)),
       ...service.persist.map((path, i) => `${persistDirs[i]}:${path}`),
     ],
-    depends_on: { broker: { condition: 'service_healthy' } },
+    depends_on: {
+      broker: { condition: 'service_healthy' },
+    },
     restart: 'unless-stopped',
   }
 
   // defu keeps every key of `generated`, so the required fields survive the merge.
-  return service.compose ? defu(service.compose, generated) as ComposeService : generated
+  return service.compose
+    ? defu(service.compose, generated) as ComposeService
+    : generated
 }
 
 /** Proxy, CA trust, placeholders and git credential helpers; shared by every caged service. */
 function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<string, string> {
-  const noProxy = ['localhost', '127.0.0.1', '::1', ...Object.keys(config.services)].join(',')
+  const noProxy = [
+    'localhost',
+    '127.0.0.1',
+    '::1',
+    ...Object.keys(config.services),
+  ].join(',')
   const environment: Record<string, string> = {
     HTTP_PROXY: PROXY,
     HTTPS_PROXY: PROXY,
@@ -310,7 +399,11 @@ function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<stri
     for (const env of [secret.env, ...secret.aliases])
       environment[env] = placeholderOf(ctx, secret.env)
   }
-  const gitHelpers = config.secrets.flatMap(({ env, git }) => git ? [{ env, ...git }] : [])
+  const gitHelpers = config.secrets.flatMap(({ env, git }) => git
+    ? [
+        { env, ...git },
+      ]
+    : [])
   if (gitHelpers.length)
     environment.GIT_CONFIG_COUNT = String(gitHelpers.length)
   gitHelpers.forEach(({ env, host, username }, i) => {
@@ -356,7 +449,14 @@ function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): Published
 
 function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
-  const parsed = { service, target, start, end, ...tailnet && { node }, ...typeof tailnet === 'number' && { tailnetPort: tailnet } }
+  const parsed = {
+    service,
+    target,
+    start,
+    end,
+    ...tailnet && { node },
+    ...typeof tailnet === 'number' && { tailnetPort: tailnet },
+  }
   if (start < 1 || end > 65535 || end < start)
     throw diagnostics.DEV_CONTAINER_N3002({ port, service })
   // The relay runs one forwarder per port.
@@ -381,22 +481,34 @@ function networkOwner(config: ResolvedConfig, name: string): string {
 }
 
 function formatRange({ start, end }: PublishedPort): string {
-  return start === end ? String(start) : `${start}-${end}`
+  return start === end
+    ? String(start)
+    : `${start}-${end}`
 }
 
 function resolveVolume(root: string, volume: string): string {
   const [source = '', ...rest] = volume.split(':')
-  if (source === '~' || source.startsWith('~/'))
-    return [join(homedir(), source.slice(1)), ...rest].join(':')
-  if (source.startsWith('.') || isAbsolute(source))
-    return [resolve(root, source), ...rest].join(':')
+  if (source === '~' || source.startsWith('~/')) {
+    return [
+      join(homedir(), source.slice(1)),
+      ...rest,
+    ].join(':')
+  }
+  if (source.startsWith('.') || isAbsolute(source)) {
+    return [
+      resolve(root, source),
+      ...rest,
+    ].join(':')
+  }
   return volume
 }
 
 /** Named volumes used by services must be declared at the top level. */
 function namedVolumes(config: ResolvedConfig): string[] {
   const sources = Object.values(config.services).flatMap(s => s.volumes.map(v => v.split(':')[0] ?? ''))
-  return [...new Set(sources.filter(source => /^\w[\w.-]*$/.test(source)))]
+  return [
+    ...new Set(sources.filter(source => /^\w[\w.-]*$/.test(source))),
+  ]
 }
 
 function slugify(path: string): string {

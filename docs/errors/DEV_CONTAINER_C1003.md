@@ -9,7 +9,12 @@ Keep one. To replace a builtin with your own definition, turn the builtin off:
 ```ts
 export default defineConfig({
   builtins: { github: false },
-  secrets: [{ env: 'GH_TOKEN', hosts: ['github.example.com'] }],
+  secrets: [
+    {
+      env: 'GH_TOKEN',
+      hosts: ['github.example.com']
+    }
+  ],
   // ...
 })
 ```

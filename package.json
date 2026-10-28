@@ -2,7 +2,7 @@
   "name": "@antfu/dev-container",
   "type": "module",
   "version": "0.0.0",
-  "packageManager": "pnpm@12.8.1",
+  "packageManager": "pnpm@12.16.1",
   "description": "Compose any agent or command into a network-caged container whose tokens never enter it",
   "author": "Anthony Fu <anthonyfu117@hotmail.com>",
   "license": "MIT",
