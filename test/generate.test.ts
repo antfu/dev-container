@@ -74,6 +74,22 @@ describe('generate', () => {
     }))
     expect(() => statSync(join(root, '.dev-container'))).toThrow()
   })
+
+  it('writes an auth key and serve config per tailscale node, falling back to the top-level key', () => {
+    const { dir } = run({
+      tailscale: { hostname: 'hub', authKey: { env: 'HUB_KEY' } },
+      services: {
+        hub: { image: 'x' },
+        paseo: { image: 'x', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } },
+        vi: { image: 'x', tailscale: { hostname: 'vi', authKey: { command: 'echo vi-key' } } },
+      },
+    }, { HUB_KEY: 'hub-key' })
+    expect(readFileSync(join(dir, 'env/tailscale.env'), 'utf8')).toBe(`TS_AUTHKEY='hub-key'\n`)
+    expect(readFileSync(join(dir, 'env/tailscale-paseo.env'), 'utf8')).toBe(`TS_AUTHKEY='hub-key'\n`)
+    expect(readFileSync(join(dir, 'env/tailscale-vi.env'), 'utf8')).toBe(`TS_AUTHKEY='vi-key'\n`)
+    expect(JSON.parse(readFileSync(join(dir, 'tailscale-paseo-serve.json'), 'utf8')).TCP).toEqual({ 6767: { HTTPS: true } })
+    expect(JSON.parse(readFileSync(join(dir, 'tailscale-serve.json'), 'utf8')).TCP).toEqual({})
+  })
 })
 
 describe('builtin secrets', () => {

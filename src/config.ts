@@ -6,6 +6,9 @@ import { z } from 'zod'
 import { diagnostics } from './diagnostics'
 
 const RESERVED_SERVICES = ['broker', 'relay', 'tailscale']
+/** Per-service tailscale sidecars are named `tailscale-<service>`. */
+const RESERVED_PREFIX = 'tailscale-'
+const DEFAULT_AUTH_KEY = { env: 'TS_AUTHKEY' }
 const RESERVED_VOLUMES = new Set(['ca', 'broker-ca'])
 
 const EnvName = z.string().regex(/^[A-Z_]\w*$/i, 'must be a valid environment variable name')
@@ -55,6 +58,11 @@ const Port = z.union([
   z.strictObject({ port: PortRange, tailnet: z.boolean().default(false) }),
 ]).transform(port => typeof port === 'object' ? port : { port, tailnet: false })
 
+const Tailscale = z.strictObject({
+  hostname: z.string().min(1),
+  authKey: SecretSource.optional(),
+})
+
 const Build = z.union([
   z.string(),
   z.strictObject({ context: z.string(), dockerfile: z.string().optional() }),
@@ -76,6 +84,8 @@ const Service = z.strictObject({
   control: z.boolean().default(false),
   /** Raw compose service fields, deep-merged over the generated service. */
   compose: z.record(z.string(), z.json()).optional(),
+  /** Serve this service's `tailnet` ports from its own node instead of the top-level one. */
+  tailscale: Tailscale.optional(),
 }).refine(service => service.image || service.build, 'requires `image` or `build`')
 
 const Builtin = z.union([z.literal(false), z.strictObject({ from: SecretSource.optional(), rules: RequestRules })])
@@ -96,14 +106,15 @@ const Config = z.strictObject({
   builtins: z.strictObject({ github: Builtin.optional(), npm: Builtin.optional() } satisfies Record<BuiltinName, z.ZodType>).default({}),
   secrets: z.array(Secret).default([]),
   egress: Egress.default({ policy: 'open' }),
-  tailscale: z.strictObject({
-    hostname: z.string().min(1),
-    authKey: SecretSource.default({ env: 'TS_AUTHKEY' }),
-  }).optional(),
+  /** The default node, for services without their own `tailscale`. */
+  tailscale: Tailscale.optional(),
   control: z.strictObject({ port: z.number().int().default(7357) }).default({ port: 7357 }),
   services: z.record(z.string().regex(/^[a-z0-9][\w-]*$/), Service)
     .refine(services => Object.keys(services).length > 0, 'at least one service is required')
-    .refine(services => !RESERVED_SERVICES.some(name => name in services), `service names ${RESERVED_SERVICES.join(', ')} are reserved`),
+    .refine(
+      services => Object.keys(services).every(name => !RESERVED_SERVICES.includes(name) && !name.startsWith(RESERVED_PREFIX)),
+      `service names ${RESERVED_SERVICES.join(', ')} and ${RESERVED_PREFIX}* are reserved`,
+    ),
 })
 
 export type UserConfig = z.input<typeof Config>
@@ -113,6 +124,31 @@ export type ResolvedSecret = z.output<typeof Secret>
 export type ResolvedService = z.output<typeof Service>
 export type SecretSourceConfig = z.output<typeof SecretSource>
 export type JsonValue = z.output<ReturnType<typeof z.json>>
+
+export interface TailscaleNode {
+  /** Compose service name of the sidecar; also names its state, env and serve files. */
+  name: string
+  hostname: string
+  authKey: SecretSourceConfig
+  /** Config path of the node, for diagnostics. */
+  label: string
+  /** Services whose `tailnet` ports this node serves. */
+  services: string[]
+}
+
+/** The top-level node first, then one per service with its own `tailscale`; auth keys fall back to the top-level one. */
+export function tailscaleNodes(config: ResolvedConfig): TailscaleNode[] {
+  const fallback = config.tailscale?.authKey ?? DEFAULT_AUTH_KEY
+  const entries = Object.entries(config.services)
+  const nodes: TailscaleNode[] = entries.flatMap(([service, { tailscale }]) => tailscale
+    ? [{ name: `${RESERVED_PREFIX}${service}`, hostname: tailscale.hostname, authKey: tailscale.authKey ?? fallback, label: `services.${service}.tailscale`, services: [service] }]
+    : [])
+  if (config.tailscale) {
+    const services = entries.filter(([, { tailscale }]) => !tailscale).map(([service]) => service)
+    nodes.unshift({ name: 'tailscale', hostname: config.tailscale.hostname, authKey: fallback, label: 'tailscale', services })
+  }
+  return nodes
+}
 
 export function defineConfig(config: UserConfig): UserConfig {
   return config

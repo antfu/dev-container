@@ -1,7 +1,8 @@
-import type { JsonValue, ResolvedConfig, ResolvedService } from './config'
+import type { JsonValue, ResolvedConfig, ResolvedService, TailscaleNode } from './config'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { defu } from 'defu'
+import { tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 
 const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
@@ -65,7 +66,8 @@ export interface StackContext {
 export interface Stack {
   compose: ComposeFile
   rules: BrokerRules
-  tailscaleServe?: TailscaleServe
+  /** Serve config per tailscale sidecar, keyed by its compose service name. */
+  tailscaleServe: Record<string, TailscaleServe>
   /** Host directories that must exist before `docker compose up`. */
   persistDirs: string[]
 }
@@ -76,17 +78,23 @@ interface PublishedPort {
   target: string
   start: number
   end: number
-  tailnet: boolean
+  /** The tailscale sidecar serving this port, if it is marked `tailnet`. */
+  node?: string
 }
 
 export function envFilePath(dir: string, name: string): string {
   return join(dir, 'env', `${name}.env`)
 }
 
+export function serveFilePath(dir: string, node: string): string {
+  return join(dir, `${node}-serve.json`)
+}
+
 /** Builds the compose project, broker rules and tailscale serve config. Pure. */
 export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const environment = cageEnvironment(config, ctx)
-  const ports = collectPorts(config)
+  const nodes = tailscaleNodes(config)
+  const ports = collectPorts(config, nodes)
   const usesControl = Object.values(config.services).some(s => s.control)
   const persistDirs: string[] = []
 
@@ -148,23 +156,22 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
     }
   }
 
-  let tailscaleServe: TailscaleServe | undefined
-  if (config.tailscale) {
-    const tailnetPorts = ports.filter(p => p.tailnet)
-    tailscaleServe = { TCP: {}, Web: {} }
-    for (const { target, start } of tailnetPorts) {
-      tailscaleServe.TCP[start] = { HTTPS: true }
-      tailscaleServe.Web[`\${TS_CERT_DOMAIN}:${start}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
+  const tailscaleServe: Record<string, TailscaleServe> = {}
+  for (const node of nodes) {
+    const serve: TailscaleServe = tailscaleServe[node.name] = { TCP: {}, Web: {} }
+    for (const { target, start } of ports.filter(p => p.node === node.name)) {
+      serve.TCP[start] = { HTTPS: true }
+      serve.Web[`\${TS_CERT_DOMAIN}:${start}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
     }
-    const state = join(ctx.dir, 'state', 'tailscale')
+    const state = join(ctx.dir, 'state', node.name)
     persistDirs.push(state)
-    services.tailscale = {
+    services[node.name] = {
       image: TAILSCALE_IMAGE,
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
-      env_file: [{ path: envFilePath(ctx.dir, 'tailscale'), required: true }],
+      env_file: [{ path: envFilePath(ctx.dir, node.name), required: true }],
       environment: {
-        TS_HOSTNAME: config.tailscale.hostname,
+        TS_HOSTNAME: node.hostname,
         TS_STATE_DIR: '/var/lib/tailscale',
         TS_SERVE_CONFIG: '/config/serve.json',
         TS_USERSPACE: 'true',
@@ -172,7 +179,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       },
       volumes: [
         `${state}:/var/lib/tailscale`,
-        `${join(ctx.dir, 'tailscale-serve.json')}:/config/serve.json:ro`,
+        `${serveFilePath(ctx.dir, node.name)}:/config/serve.json:ro`,
       ],
       restart: 'unless-stopped',
     }
@@ -276,9 +283,11 @@ function placeholderOf(ctx: StackContext, env: string): string {
   return placeholder
 }
 
-function collectPorts(config: ResolvedConfig): PublishedPort[] {
-  const ports = Object.entries(config.services).flatMap(([service, { ports }]) =>
-    ports.map(({ port, tailnet }) => parsePort(service, networkOwner(config, service), String(port), tailnet, !!config.tailscale)))
+function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): PublishedPort[] {
+  const ports = Object.entries(config.services).flatMap(([service, { ports }]) => {
+    const node = nodes.find(n => n.services.includes(service))?.name
+    return ports.map(({ port, tailnet }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node))
+  })
   const owners = new Map<number, string>()
   for (const { service, start, end } of ports) {
     for (let p = start; p <= end; p++) {
@@ -291,9 +300,9 @@ function collectPorts(config: ResolvedConfig): PublishedPort[] {
   return ports
 }
 
-function parsePort(service: string, target: string, port: string, tailnet: boolean, hasTailscale: boolean): PublishedPort {
+function parsePort(service: string, target: string, port: string, tailnet: boolean, node: string | undefined): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
-  const parsed = { service, target, start, end, tailnet }
+  const parsed = { service, target, start, end, ...tailnet && { node } }
   if (start < 1 || end > 65535 || end < start)
     throw diagnostics.DEV_CONTAINER_N3002({ port, service })
   // The relay runs one forwarder per port.
@@ -301,7 +310,7 @@ function parsePort(service: string, target: string, port: string, tailnet: boole
     throw diagnostics.DEV_CONTAINER_N3003({ port, service, max: MAX_RANGE })
   if (tailnet && parsed.end !== parsed.start)
     throw diagnostics.DEV_CONTAINER_N3004({ port, service })
-  if (tailnet && !hasTailscale)
+  if (tailnet && !node)
     throw diagnostics.DEV_CONTAINER_N3005({ port, service })
   return parsed
 }

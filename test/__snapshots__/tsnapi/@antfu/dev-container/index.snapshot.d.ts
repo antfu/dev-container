@@ -119,7 +119,7 @@ interface ComposeService {
 interface Stack {
   compose: ComposeFile;
   rules: BrokerRules;
-  tailscaleServe?: TailscaleServe;
+  tailscaleServe: Record<string, TailscaleServe>;
   persistDirs: string[];
 }
 interface StackContext {
