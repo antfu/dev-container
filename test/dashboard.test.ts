@@ -4,17 +4,17 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { createControlApp } from '../src'
+import { createDashboardApp } from '../src'
 
 const docker = fileURLToPath(new URL('fixtures/fake-docker.mjs', import.meta.url))
 const auth = { headers: { Authorization: 'Bearer secret-token' } }
 
 let tmp: string
 const invocations = () => readFileSync(join(tmp, 'log'), 'utf8').trim().split('\n')
-const app = () => createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker })
+const app = () => createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker })
 
 beforeEach(() => {
-  tmp = mkdtempSync(join(tmpdir(), 'dev-container-control-'))
+  tmp = mkdtempSync(join(tmpdir(), 'dev-container-dashboard-'))
   vi.stubEnv('FAKE_DOCKER_LOG', join(tmp, 'log'))
   vi.stubEnv('FAKE_DOCKER_PID', join(tmp, 'pid'))
 })
@@ -37,10 +37,17 @@ async function waitForExit(pid: number) {
   await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 2000 })
 }
 
-describe('control API', () => {
+describe('dashboard API', () => {
+  it('lists the tailnet links', async () => {
+    const links = [{ name: 'agent:6767', url: 'https://agents.tail1234.ts.net' }]
+    const withLinks = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, links })
+    expect(await (await withLinks.request('/links', auth)).json()).toEqual({ links })
+    expect(await (await app().request('/links', auth)).json()).toEqual({ links: [] })
+  })
+
   it('runs the daemon\'s upgrade, and refuses without one', async () => {
     const upgrade = vi.fn(async () => 'deployed' as const)
-    const withDaemon = createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, upgrade })
+    const withDaemon = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker, upgrade })
     const response = await withDaemon.request('/upgrade', { method: 'POST', ...auth })
     expect(await response.json()).toEqual({ ok: true, result: 'deployed' })
     expect(upgrade).toHaveBeenCalledOnce()
@@ -106,10 +113,10 @@ describe('control API', () => {
     await waitForExit(Number(readFileSync(join(tmp, 'pid'), 'utf8')))
   })
 
-  it('serves the monitor page without a token, but nothing else', async () => {
+  it('serves the dashboard page without a token, but nothing else', async () => {
     const page = await app().request('/')
     expect(page.status).toBe(200)
-    expect(await page.text()).toContain('dev-container monitor')
+    expect(await page.text()).toContain('dev-container dashboard')
     expect((await app().request('/services')).status).toBe(401)
   })
 
@@ -159,7 +166,7 @@ describe('control API', () => {
   })
 
   it('reports a missing docker binary instead of crashing', async () => {
-    const broken = createControlApp({ dir: '/stack/.dev-container', token: 'secret-token', docker: join(tmpdir(), 'no-such-docker') })
+    const broken = createDashboardApp({ dir: '/stack/.dev-container', token: 'secret-token', docker: join(tmpdir(), 'no-such-docker') })
     const response = await broken.request('/services', auth)
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ name: 'DEV_CONTAINER_D4001' })
@@ -176,7 +183,7 @@ describe('control API', () => {
   it('serves its OpenAPI document', async () => {
     const doc = z.object({ paths: z.record(z.string(), z.object({})), components: z.object({ securitySchemes: z.object({}).loose() }) })
       .parse(await (await app().request('/openapi.json', auth)).json())
-    expect(Object.keys(doc.paths)).toEqual(['/services', '/stats', '/services/{name}/logs', '/restart', '/services/{name}/restart', '/update', '/upgrade', '/services/{name}/update', '/services/{name}/gpg', '/services/{name}/gpg/public'])
+    expect(Object.keys(doc.paths)).toEqual(['/services', '/links', '/stats', '/services/{name}/logs', '/restart', '/services/{name}/restart', '/update', '/upgrade', '/services/{name}/update', '/services/{name}/gpg', '/services/{name}/gpg/public'])
     expect(doc.components.securitySchemes).toEqual({ bearer: { type: 'http', scheme: 'bearer' } })
   })
 })

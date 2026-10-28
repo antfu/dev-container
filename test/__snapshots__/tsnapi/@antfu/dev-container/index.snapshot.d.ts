@@ -28,12 +28,6 @@ export interface ComposeOptions {
   dir: string;
   docker?: string;
 }
-export interface ControlOptions {
-  dir: string;
-  token: string;
-  docker?: string;
-  upgrade?: () => Promise<'up-to-date' | 'deployed'>;
-}
 export interface Daemon {
   server: ServerType;
   close: () => void;
@@ -46,6 +40,13 @@ export interface DaemonOptions {
   onWarnings?: (_: Diagnostic<unknown>[]) => void;
   onUpgraded?: () => void;
 }
+export interface DashboardOptions {
+  dir: string;
+  token: string;
+  docker?: string;
+  upgrade?: () => Promise<'up-to-date' | 'deployed'>;
+  links?: TailscaleLink[];
+}
 export interface Generated {
   dir: string;
   composeFile: string;
@@ -56,7 +57,7 @@ export interface GenerateOptions {
   root: string;
   env?: NodeJS.ProcessEnv;
 }
-export interface ServeControlOptions extends ControlOptions {
+export interface ServeDashboardOptions extends DashboardOptions {
   hostname?: string;
   port: number;
 }
@@ -67,6 +68,10 @@ export interface SetupOptions {
 }
 export interface SetupResult {
   changes: string[];
+}
+export interface TailscaleLink {
+  name: string;
+  url: string;
 }
 // #endregion
 
@@ -79,7 +84,7 @@ export type UserConfig = z.input<typeof Config>;
 // #region Functions
 export declare function buildStack(_: ResolvedConfig, _: StackContext): Stack;
 export declare function compose(_: string[], { dir, docker }: ComposeOptions): Promise<number>;
-export declare function createControlApp({ dir, token, docker, upgrade }: ControlOptions): OpenAPIHono;
+export declare function createDashboardApp({ dir, token, docker, upgrade, links }: DashboardOptions): OpenAPIHono;
 export declare function defineConfig(_: UserConfig): UserConfig;
 export declare function generate({ config: userConfig, root, env }: GenerateOptions): Generated;
 export declare function installDaemon({ root, name }: {
@@ -91,11 +96,12 @@ export declare function loadConfig(_?: any): Promise<{
   root: string;
   file: string;
 }>;
-export declare function readControlToken(_: string): string;
+export declare function readDashboardToken(_: string, _?: string, _?: NodeJS.ProcessEnv): string;
 export declare function resolveConfig(_: UserConfig, _?: string): ResolvedConfig;
 export declare function runDaemon({ config, root, host, port, onWarnings, onUpgraded }: DaemonOptions): Daemon;
-export declare function serveControl({ hostname, port, ...options }: ServeControlOptions): ServerType;
+export declare function serveDashboard({ hostname, port, ...options }: ServeDashboardOptions): ServerType;
 export declare function setup({ root, image, ports }: SetupOptions): SetupResult;
+export declare function tailscaleLinks(_: ResolvedConfig): TailscaleLink[];
 export declare function uninstallDaemon(_: string): void;
 export declare function up(_: GenerateOptions & {
   args?: string[];
@@ -146,6 +152,6 @@ interface StackContext {
   dir: string;
   assets: string;
   placeholders: Record<string, string>;
-  controlToken: string;
+  dashboardToken: string;
 }
 // #endregion

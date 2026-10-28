@@ -25,7 +25,7 @@ export default defineConfig({
         // Relaunch Chromium when its window is closed, or agents lose CDP until the next restart.
         RESTART_APP: 'true',
       },
-      ports: [{ port: 6900, tailnet: true }],
+      ports: [{ port: 6900, tailnet: 6900 }],
       persist: ['/config'],
       compose: { shm_size: '1gb' },
     },

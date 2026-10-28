@@ -6,17 +6,18 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { serveControl } from './control'
-import { readControlToken } from './generate'
-import { sync } from './sync'
+import { tailscaleLinks } from './compose'
+import { serveDashboard } from './dashboard'
+import { readDashboardToken } from './generate'
+import { selfUpgrade } from './upgrade'
 
 export interface DaemonOptions {
   config: ResolvedConfig
   /** The project root, which has to be a git checkout. */
   root: string
-  /** Overrides `control.host`. */
+  /** Overrides `dashboard.host`. */
   host?: string
-  /** Overrides `control.port`. */
+  /** Overrides `dashboard.port`. */
   port?: number
   onWarnings?: (warnings: Diagnostic<unknown>[]) => void
   /** Called after a deploy so the process can exit and its supervisor start the new code. Defaults to `process.exit(0)`. */
@@ -29,7 +30,7 @@ export interface Daemon {
 }
 
 /**
- * Serves the control API and, with `sync.autoUpgrade`, runs `sync` on a timer. The monitor's upgrade button
+ * Serves the dashboard API and, with `selfUpgrade.auto`, runs `selfUpgrade` on a timer. The dashboard's upgrade button
  * runs it on demand. Runs never overlap. After a deploy the process exits, so launchd or systemd restart it
  * on the freshly pulled code.
  */
@@ -39,7 +40,7 @@ export function runDaemon({ config, root, host, port, onWarnings, onUpgraded = (
 
   const upgrade = (force: boolean): Promise<'up-to-date' | 'deployed'> => {
     // A second caller joins the run in flight.
-    running ??= sync({ config, root, force, onWarnings })
+    running ??= selfUpgrade({ config, root, force, onWarnings })
       .then((result) => {
         if (result === 'deployed')
           setTimeout(onUpgraded, 500).unref()
@@ -51,21 +52,22 @@ export function runDaemon({ config, root, host, port, onWarnings, onUpgraded = (
     return running
   }
 
-  const server = serveControl({
+  const server = serveDashboard({
     dir,
-    token: readControlToken(dir),
-    hostname: host ?? config.control.host,
-    port: port ?? config.control.port,
+    token: readDashboardToken(dir, config.dashboard.token),
+    links: tailscaleLinks(config),
+    hostname: host ?? config.dashboard.host,
+    port: port ?? config.dashboard.port,
     upgrade: () => upgrade(true),
   })
 
   let timer: ReturnType<typeof setInterval> | undefined
-  if (config.sync.autoUpgrade) {
+  if (config.selfUpgrade.auto) {
     timer = setInterval(() => {
       upgrade(false).catch((error: unknown) => {
-        process.stderr.write(`Upgrade failed, retrying in ${config.sync.interval}s: ${error instanceof Error ? error.message : String(error)}\n`)
+        process.stderr.write(`Upgrade failed, retrying in ${config.selfUpgrade.interval}s: ${error instanceof Error ? error.message : String(error)}\n`)
       })
-    }, config.sync.interval * 1000)
+    }, config.selfUpgrade.interval * 1000)
   }
 
   return { server, close: () => {

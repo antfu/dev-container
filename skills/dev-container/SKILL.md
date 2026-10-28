@@ -32,7 +32,7 @@ Code prefixes:
 | `C1` | config |
 | `S2` | secrets and env files |
 | `N3` | ports, volumes, persist |
-| `D4` | docker and the control API |
+| `D4` | docker and the dashboard API |
 | `B5` | broker blocks, seen from inside the cage |
 
 Secret values belong in `.env.secret`, never in `dev-container.config.ts`. Do not print them.

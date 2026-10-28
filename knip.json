@@ -3,6 +3,6 @@
   "ignoreDependencies": ["@antfu/utils", "taze", "@antfu/skills"],
   "workspaces": {
     ".": { "project": ["src/**/*.ts"] },
-    "packages/monitor": { "entry": ["monitor.html"], "project": ["src/**/*.{ts,vue}"] }
+    "packages/dashboard": { "entry": ["dashboard.html"], "project": ["src/**/*.{ts,vue}"] }
   }
 }

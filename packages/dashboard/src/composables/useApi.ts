@@ -12,7 +12,7 @@ export function setToken(value: string): void {
     sessionStorage.removeItem(STORAGE_KEY)
 }
 
-/** Calls the control API with the bearer token; failures throw the server's `why`. */
+/** Calls the dashboard API with the bearer token; failures throw the server's `why`. */
 export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...init,

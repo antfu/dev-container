@@ -1,7 +1,7 @@
 import type { UserConfig } from '../src'
 import { describe, expect, it } from 'vitest'
 import { stringify } from 'yaml'
-import { buildStack, resolveConfig } from '../src'
+import { buildStack, resolveConfig, tailscaleLinks } from '../src'
 import { BUILTINS } from '../src/builtins'
 
 const ctx = {
@@ -9,7 +9,7 @@ const ctx = {
   dir: '/work/my-project/.dev-container',
   assets: '/pkg',
   placeholders: { GH_TOKEN: 'dc-GH_TOKEN-0000000000000000', ACME_KEY: 'dc-ACME_KEY-1111111111111111' },
-  controlToken: 'control-token',
+  dashboardToken: 'dashboard-token',
 }
 
 function build(config: UserConfig) {
@@ -30,7 +30,7 @@ describe('buildStack', () => {
           ports: [{ port: 6767, tailnet: true }, '5170-5172'],
           volumes: ['./projects:/workspace', 'cache:/cache'],
           persist: ['/home/paseo'],
-          control: true,
+          dashboard: true,
           compose: { mem_limit: '4g' },
         },
       },
@@ -70,12 +70,12 @@ describe('buildStack', () => {
       {
         "tailscale": {
           "TCP": {
-            "6767": {
+            "443": {
               "HTTPS": true,
             },
           },
           "Web": {
-            "\${TS_CERT_DOMAIN}:6767": {
+            "\${TS_CERT_DOMAIN}:443": {
               "Handlers": {
                 "/": {
                   "Proxy": "http://agent:6767",
@@ -102,27 +102,27 @@ describe('buildStack', () => {
     })
   })
 
-  it('serves the monitor on the tailnet from a node of its own', () => {
+  it('serves the dashboard on the tailnet from a node of its own', () => {
     const { tailscaleServe, compose } = build({
-      control: { port: 7357, tailscale: { hostname: 'monitor' } },
+      dashboard: { port: 7357, tailscale: { hostname: 'dashboard' } },
       services: { agent: { image: 'x' } },
     })
-    expect(tailscaleServe['tailscale-control']).toEqual({
+    expect(tailscaleServe['tailscale-dashboard']).toEqual({
       TCP: { 443: { HTTPS: true } },
       // eslint-disable-next-line no-template-curly-in-string
       Web: { '${TS_CERT_DOMAIN}:443': { Handlers: { '/': { Proxy: 'http://host.docker.internal:7357' } } } },
     })
-    expect(compose.services['tailscale-control']).toMatchObject({
-      environment: { TS_HOSTNAME: 'monitor' },
+    expect(compose.services['tailscale-dashboard']).toMatchObject({
+      environment: { TS_HOSTNAME: 'dashboard' },
       extra_hosts: ['host.docker.internal:host-gateway'],
     })
   })
 
-  it('serves a tailnet port on another port, so nodes can all use 443', () => {
+  it('defaults a tailnet port to 443, which each node can use once', () => {
     const { tailscaleServe } = build({
       services: {
-        hub: { image: 'x', ports: [{ port: 3000, tailnet: 443 }], tailscale: { hostname: 'hub' } },
-        paseo: { image: 'x', ports: [{ port: 6767, tailnet: 443 }], tailscale: { hostname: 'paseo' } },
+        hub: { image: 'x', ports: [{ port: 3000, tailnet: true }], tailscale: { hostname: 'hub' } },
+        paseo: { image: 'x', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } },
       },
     })
     expect(tailscaleServe['tailscale-hub']).toEqual({
@@ -142,8 +142,8 @@ describe('buildStack', () => {
       },
     })
     expect(Object.keys(stack.tailscaleServe)).toEqual(['tailscale', 'tailscale-paseo'])
-    expect(Object.keys(stack.tailscaleServe['tailscale-paseo']!.TCP)).toEqual(['6767'])
-    expect(Object.keys(stack.tailscaleServe.tailscale!.TCP)).toEqual(['3000'])
+    expect(Object.keys(stack.tailscaleServe['tailscale-paseo']!.TCP)).toEqual(['443'])
+    expect(Object.keys(stack.tailscaleServe.tailscale!.TCP)).toEqual(['443'])
     expect(stack.compose.services['tailscale-paseo']).toMatchObject({
       env_file: [{ path: '/work/my-project/.dev-container/env/tailscale-paseo.env', required: true }],
       environment: { TS_HOSTNAME: 'paseo' },
@@ -266,5 +266,27 @@ describe('resolveConfig', () => {
         "Invalid config at \`services.b.persist.0\`: Invalid string: must start with "/".",
       ]
     `)
+  })
+
+  it('lists tailnet links once any node names the tailnet', () => {
+    const config = (domain?: string) => resolveConfig({
+      tailscale: { hostname: 'agents' },
+      dashboard: { tailscale: { hostname: 'dashboard', domain } },
+      services: {
+        agent: { image: 'alpine', ports: [{ port: 6767, tailnet: true }, 5000, { port: 8100, tailnet: 8100 }] },
+        vi: { image: 'alpine', ports: [{ port: 5656, tailnet: true }], tailscale: { hostname: 'vi' } },
+      },
+    })
+    expect(tailscaleLinks(config())).toEqual([])
+    expect(() => buildStack(resolveConfig({
+      tailscale: { hostname: 'agents' },
+      services: { a: { image: 'alpine', ports: [{ port: 1, tailnet: true }] }, b: { image: 'alpine', ports: [{ port: 2, tailnet: true }] } },
+    }), ctx)).toThrow(/tailnet port 443/)
+    expect(tailscaleLinks(config('tail1234.ts.net'))).toEqual([
+      { name: 'dashboard', url: 'https://dashboard.tail1234.ts.net' },
+      { name: 'agent:6767', url: 'https://agents.tail1234.ts.net' },
+      { name: 'agent:8100', url: 'https://agents.tail1234.ts.net:8100' },
+      { name: 'vi:5656', url: 'https://vi.tail1234.ts.net' },
+    ])
   })
 })

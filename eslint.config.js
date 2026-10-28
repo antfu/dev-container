@@ -7,6 +7,6 @@ export default antfu(
     pnpm: true,
     vue: true,
     antislop: true,
-    ignores: ['packages/monitor/monitor.html'],
+    ignores: ['packages/dashboard/dashboard.html'],
   },
 )

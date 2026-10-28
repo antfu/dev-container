@@ -56,8 +56,8 @@ services:
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: credential.https://github.com.helper
       GIT_CONFIG_VALUE_0: "!f() { test \\"$$1\\" = get && printf 'username=x-access-token\\\\npassword=%s\\\\n' \\"$$GH_TOKEN\\"; }; f"
-      DEV_CONTAINER_CONTROL_URL: http://host.docker.internal:7357
-      DEV_CONTAINER_CONTROL_TOKEN: control-token
+      DEV_CONTAINER_DASHBOARD_URL: http://host.docker.internal:7357
+      DEV_CONTAINER_DASHBOARD_TOKEN: dashboard-token
       FOO: bar
     env_file:
       - path: /work/my-project/.dev-container/env/agent.env

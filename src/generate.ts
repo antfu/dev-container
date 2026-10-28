@@ -62,7 +62,7 @@ export function generate({ config: userConfig, root, env = process.env }: Genera
     dir,
     assets: fileURLToPath(new URL('..', import.meta.url)),
     placeholders: Object.fromEntries(config.secrets.map(s => [s.env, `dc-${s.env}-${randomBytes(8).toString('hex')}`])),
-    controlToken: readControlToken(dir),
+    dashboardToken: readDashboardToken(dir, config.dashboard.token, env),
   })
 
   for (const [name, values] of Object.entries(envFiles))
@@ -77,9 +77,15 @@ export function generate({ config: userConfig, root, env = process.env }: Genera
   return { dir, composeFile, warnings }
 }
 
-/** Reads the control token, creating it on first use. It stays stable across runs. */
-export function readControlToken(dir: string): string {
-  const path = join(dir, 'control-token')
+/**
+ * The dashboard token: `$DEV_CONTAINER_DASHBOARD_TOKEN` on the host when set, else `dashboard.token` from the
+ * config, else `dashboard-token` in the stack directory, created on first use. It stays stable across runs.
+ */
+export function readDashboardToken(dir: string, configured?: string, env: NodeJS.ProcessEnv = process.env): string {
+  const chosen = env.DEV_CONTAINER_DASHBOARD_TOKEN?.trim() || configured
+  if (chosen)
+    return chosen
+  const path = join(dir, 'dashboard-token')
   if (existsSync(path))
     return readFileSync(path, 'utf8').trim()
   mkdirSync(dir, { recursive: true })

@@ -61,12 +61,14 @@ const PortRange = z.union([
 
 const Port = z.union([
   PortRange,
-  // `true` serves the port on the tailnet as is; a number serves it on that tailnet port instead.
+  // `true` serves the port on the tailnet on 443; a number serves it on that tailnet port instead.
   z.strictObject({ port: PortRange, tailnet: z.union([z.boolean(), z.number().int().min(1).max(65535)]).default(false) }),
 ]).transform(port => typeof port === 'object' ? port : { port, tailnet: false })
 
 const Tailscale = z.strictObject({
   hostname: z.string().min(1),
+  /** The tailnet's DNS name, such as `tail1234.ts.net`. It lets the dashboard list the node's URLs; any node's `domain` serves the others. */
+  domain: z.string().regex(/^[a-z0-9.-]+\.ts\.net$/i, 'must be a tailnet name like tail1234.ts.net').optional(),
   authKey: SecretSource.optional(),
 })
 
@@ -87,8 +89,8 @@ const Service = z.strictObject({
   network: z.string().regex(/^service:[a-z0-9][\w-]*$/, 'must be `service:<name>`').optional(),
   /** Container paths persisted to `.dev-container/state/<service>/`. */
   persist: z.array(z.string().startsWith('/')).default([]),
-  /** Inject the control server URL and token. */
-  control: z.boolean().default(false),
+  /** Inject the dashboard server URL and token. */
+  dashboard: z.boolean().default(false),
   /** Raw compose service fields, deep-merged over the generated service. */
   compose: z.record(z.string(), z.json()).optional(),
   /** Serve this service's `tailnet` ports from its own node instead of the top-level one. */
@@ -145,29 +147,31 @@ const Config = z.strictObject({
     gpg: Gpg.optional(),
   }).default({}),
   secrets: z.array(Secret).default([]),
-  /** `dev-container sync` for a stack kept in a git checkout on an always-on host. */
-  sync: z.strictObject({
-    /** Pull, rebuild and restart on its own: the daemon runs `sync` every `interval` seconds. Off, an upgrade only runs when asked, from `sync` or the monitor. */
-    autoUpgrade: z.boolean().default(false),
-    /** Seconds between the daemon's automatic upgrades. */
+  /** How a stack kept in a git checkout on an always-on host pulls, rebuilds and restarts itself: `dev-container upgrade`, the daemon, or the dashboard's Upgrade button. */
+  selfUpgrade: z.strictObject({
+    /** Upgrade on a timer: the daemon runs `dev-container upgrade` every `interval` seconds. Off, an upgrade only runs when asked. */
+    auto: z.boolean().default(false),
+    /** Seconds between automatic upgrades. */
     interval: z.number().int().min(10).default(300),
-    /** Shell commands run from the project root before `up`, such as `pnpm install --frozen-lockfile`. */
-    commands: z.array(z.string()).default([]),
-  }).default({ autoUpgrade: false, interval: 300, commands: [] }),
+    /** Shell command or commands run from the project root before `up`, such as `pnpm install --frozen-lockfile`. */
+    command: z.union([z.string(), z.array(z.string())]).transform(command => typeof command === 'string' ? [command] : command).default([]),
+  }).default({ auto: false, interval: 300, command: [] }),
   egress: Egress.default({ policy: 'open' }),
   /** The default node, for services without their own `tailscale`. */
   tailscale: Tailscale.optional(),
-  control: z.strictObject({
+  dashboard: z.strictObject({
     port: z.number().int().default(7357),
+    /** Bearer token for the dashboard API. `$DEV_CONTAINER_DASHBOARD_TOKEN` wins over it, and without either a random one is kept in `.dev-container/dashboard-token`. Prefer the env var when the config is committed. */
+    token: z.string().min(1).optional(),
     /** Address `dev-container serve` binds to. */
     host: z.string().default('127.0.0.1'),
     /**
-     * Serve the control API and its monitor on the tailnet from a node of its own, as
+     * Serve the dashboard API and its dashboard on the tailnet from a node of its own, as
      * `https://<hostname>.<tailnet>.ts.net`. The sidecar reaches the host through `host.docker.internal`,
      * so on Linux `host` has to be an address the docker gateway can reach, such as `0.0.0.0`.
      */
     tailscale: Tailscale.optional(),
-    /** The tailnet port the monitor is served on. */
+    /** The tailnet port the dashboard is served on. */
     tailnetPort: z.number().int().min(1).max(65535).default(443),
   }).default({ port: 7357, host: '127.0.0.1', tailnetPort: 443 }),
   services: z.record(z.string().regex(/^[a-z0-9][\w-]*$/), Service)
@@ -190,29 +194,33 @@ export interface TailscaleNode {
   /** Compose service name of the sidecar; also names its state, env and serve files. */
   name: string
   hostname: string
+  /** The tailnet name, from this node or the first node that sets one. */
+  domain?: string
   authKey: SecretSourceConfig
   /** Config path of the node, for diagnostics. */
   label: string
   /** Services whose `tailnet` ports this node serves. */
   services: string[]
-  /** Set on the control node: the tailnet port it serves and the host port it forwards to. */
-  control?: { tailnetPort: number, port: number }
+  /** Set on the dashboard node: the tailnet port it serves and the host port it forwards to. */
+  dashboard?: { tailnetPort: number, port: number }
 }
 
 /** The top-level node first, then one per service with its own `tailscale`; auth keys fall back to the top-level one. */
 export function tailscaleNodes(config: ResolvedConfig): TailscaleNode[] {
   const fallback = config.tailscale?.authKey ?? DEFAULT_AUTH_KEY
   const entries = Object.entries(config.services)
+  // One tailnet, so one domain: whichever node names it serves the rest.
+  const domain = [config.tailscale, config.dashboard.tailscale, ...entries.map(([, { tailscale }]) => tailscale)].find(t => t?.domain)?.domain
   const nodes: TailscaleNode[] = entries.flatMap(([service, { tailscale }]) => tailscale
-    ? [{ name: `${RESERVED_PREFIX}${service}`, hostname: tailscale.hostname, authKey: tailscale.authKey ?? fallback, label: `services.${service}.tailscale`, services: [service] }]
+    ? [{ name: `${RESERVED_PREFIX}${service}`, hostname: tailscale.hostname, domain, authKey: tailscale.authKey ?? fallback, label: `services.${service}.tailscale`, services: [service] }]
     : [])
-  if (config.control.tailscale) {
-    const { tailscale, tailnetPort, port } = config.control
-    nodes.push({ name: `${RESERVED_PREFIX}control`, hostname: tailscale.hostname, authKey: tailscale.authKey ?? fallback, label: 'control.tailscale', services: [], control: { tailnetPort, port } })
+  if (config.dashboard.tailscale) {
+    const { tailscale, tailnetPort, port } = config.dashboard
+    nodes.push({ name: `${RESERVED_PREFIX}dashboard`, hostname: tailscale.hostname, domain, authKey: tailscale.authKey ?? fallback, label: 'dashboard.tailscale', services: [], dashboard: { tailnetPort, port } })
   }
   if (config.tailscale) {
     const services = entries.filter(([, { tailscale }]) => !tailscale).map(([service]) => service)
-    nodes.unshift({ name: 'tailscale', hostname: config.tailscale.hostname, authKey: fallback, label: 'tailscale', services })
+    nodes.unshift({ name: 'tailscale', hostname: config.tailscale.hostname, domain, authKey: fallback, label: 'tailscale', services })
   }
   return nodes
 }

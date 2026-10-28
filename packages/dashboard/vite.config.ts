@@ -3,13 +3,13 @@ import UnoCSS from 'unocss/vite'
 import { defineConfig } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
-/** The control server serves one self-contained HTML file, so the page needs no asset routes. */
+/** The dashboard server serves one self-contained HTML file, so the page needs no asset routes. */
 export default defineConfig({
   plugins: [vue(), UnoCSS(), viteSingleFile()],
   build: {
     outDir: '../../dist',
     emptyOutDir: false,
-    rollupOptions: { input: 'monitor.html' },
+    rollupOptions: { input: 'dashboard.html' },
   },
   server: {
     // `dev-container serve` in another terminal provides the API.

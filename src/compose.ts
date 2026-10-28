@@ -9,7 +9,7 @@ const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
 const PROXY = 'http://broker:8080'
 const CA_DIR = '/etc/dev-container/ca'
 const CA_CERT = `${CA_DIR}/mitmproxy-ca-cert.pem`
-const CONTROL_HOST = 'host.docker.internal'
+const DASHBOARD_HOST = 'host.docker.internal'
 const MAX_RANGE = 100
 /** A dual-homed sidecar must never route packets from the cage to the outside. */
 const NO_FORWARDING = { 'net.ipv4.ip_forward': '0' }
@@ -60,7 +60,7 @@ export interface StackContext {
   assets: string
   /** Secret env name -> placeholder. */
   placeholders: Record<string, string>
-  controlToken: string
+  dashboardToken: string
 }
 
 export interface Stack {
@@ -80,8 +80,40 @@ interface PublishedPort {
   end: number
   /** The tailscale sidecar serving this port, if it is marked `tailnet`. */
   node?: string
-  /** The port the sidecar serves it on; defaults to `start`. */
+  /** The port the sidecar serves it on: 443 unless `tailnet` names another. */
   tailnetPort?: number
+}
+
+/** The port `tailscale serve` listens on unless a port or the dashboard names another. */
+const TAILNET_PORT = 443
+
+export interface TailscaleLink {
+  /** What the URL reaches: `dashboard`, or `service:port`. */
+  name: string
+  url: string
+}
+
+/**
+ * The tailnet URLs the stack serves, for the dashboard's quick links. Empty until a tailscale node sets
+ * `domain`, because the tailnet name is not known to the config otherwise.
+ */
+export function tailscaleLinks(config: ResolvedConfig): TailscaleLink[] {
+  const nodes = tailscaleNodes(config)
+  const domain = nodes[0]?.domain
+  if (!domain)
+    return []
+  const url = (node: TailscaleNode, port: number): string => `https://${node.hostname}.${domain}${port === 443 ? '' : `:${port}`}`
+  const links: TailscaleLink[] = []
+  for (const node of nodes) {
+    if (node.dashboard)
+      links.push({ name: 'dashboard', url: url(node, node.dashboard.tailnetPort) })
+  }
+  for (const { service, start, node: name, tailnetPort = TAILNET_PORT } of collectPorts(config, nodes)) {
+    const node = nodes.find(n => n.name === name)
+    if (node)
+      links.push({ name: `${service}:${start}`, url: url(node, tailnetPort) })
+  }
+  return links
 }
 
 export function envFilePath(dir: string, name: string): string {
@@ -97,12 +129,12 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const environment = cageEnvironment(config, ctx)
   const nodes = tailscaleNodes(config)
   const ports = collectPorts(config, nodes)
-  const usesControl = Object.values(config.services).some(s => s.control)
+  const usesDashboard = Object.values(config.services).some(s => s.dashboard)
   const persistDirs: string[] = []
 
   const allow = config.egress.policy === 'allowlist' ? [...config.egress.allow] : []
-  if (usesControl)
-    allow.push(`${CONTROL_HOST}:${config.control.port}`)
+  if (usesDashboard)
+    allow.push(`${DASHBOARD_HOST}:${config.dashboard.port}`)
   const rules: BrokerRules = {
     policy: config.egress.policy,
     allow,
@@ -125,7 +157,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
         'broker-ca:/home/mitmproxy/.mitmproxy',
         `ca:${CA_DIR}`,
       ],
-      ...usesControl && { extra_hosts: [`${CONTROL_HOST}:host-gateway`] },
+      ...usesDashboard && { extra_hosts: [`${DASHBOARD_HOST}:host-gateway`] },
       sysctls: NO_FORWARDING,
       healthcheck: {
         test: ['CMD', 'python3', '-c', `import os,socket;assert os.path.exists('${CA_CERT}');socket.create_connection(('127.0.0.1',8080),2)`],
@@ -161,11 +193,11 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const tailscaleServe: Record<string, TailscaleServe> = {}
   for (const node of nodes) {
     const serve: TailscaleServe = tailscaleServe[node.name] = { TCP: {}, Web: {} }
-    if (node.control)
-      serve.TCP[node.control.tailnetPort] = { HTTPS: true }
-    if (node.control)
-      serve.Web[`\${TS_CERT_DOMAIN}:${node.control.tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${CONTROL_HOST}:${node.control.port}` } } }
-    for (const { target, start, tailnetPort = start } of ports.filter(p => p.node === node.name)) {
+    if (node.dashboard)
+      serve.TCP[node.dashboard.tailnetPort] = { HTTPS: true }
+    if (node.dashboard)
+      serve.Web[`\${TS_CERT_DOMAIN}:${node.dashboard.tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${DASHBOARD_HOST}:${node.dashboard.port}` } } }
+    for (const { target, start, tailnetPort = TAILNET_PORT } of ports.filter(p => p.node === node.name)) {
       serve.TCP[tailnetPort] = { HTTPS: true }
       serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
     }
@@ -176,7 +208,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
       env_file: [{ path: envFilePath(ctx.dir, node.name), required: true }],
-      ...node.control && { extra_hosts: [`${CONTROL_HOST}:host-gateway`] },
+      ...node.dashboard && { extra_hosts: [`${DASHBOARD_HOST}:host-gateway`] },
       environment: {
         TS_HOSTNAME: node.hostname,
         TS_STATE_DIR: '/var/lib/tailscale',
@@ -215,9 +247,9 @@ function cagedService(
   persistDirs: string[],
 ): ComposeService {
   const environment = { ...baseEnvironment }
-  if (service.control) {
-    environment.DEV_CONTAINER_CONTROL_URL = `http://${CONTROL_HOST}:${config.control.port}`
-    environment.DEV_CONTAINER_CONTROL_TOKEN = ctx.controlToken
+  if (service.dashboard) {
+    environment.DEV_CONTAINER_DASHBOARD_URL = `http://${DASHBOARD_HOST}:${config.dashboard.port}`
+    environment.DEV_CONTAINER_DASHBOARD_TOKEN = ctx.dashboardToken
   }
 
   if (service.git?.name)
@@ -300,6 +332,16 @@ function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): Published
     const node = nodes.find(n => n.services.includes(service))?.name
     return ports.map(({ port, tailnet }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node))
   })
+  const tailnet = new Map<string, string>()
+  for (const { service, node, tailnetPort = TAILNET_PORT } of ports) {
+    if (!node)
+      continue
+    const key = `${node}:${tailnetPort}`
+    const first = tailnet.get(key)
+    if (first)
+      throw diagnostics.DEV_CONTAINER_N3008({ port: tailnetPort, first, second: service })
+    tailnet.set(key, service)
+  }
   const owners = new Map<number, string>()
   for (const { service, start, end } of ports) {
     for (let p = start; p <= end; p++) {

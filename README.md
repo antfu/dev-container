@@ -93,7 +93,7 @@ export default defineConfig({
       volumes: ['./projects:/workspace'],
       persist: ['/home/paseo'], // kept in .dev-container/state/agent/
       // network: 'service:browser', // share another caged service's localhost
-      control: true, // inject the control API URL and token
+      dashboard: true, // inject the dashboard API URL and token
       compose: { mem_limit: '8g' }, // raw compose fields, deep-merged
     },
   },
@@ -135,7 +135,7 @@ export default defineConfig({
 })
 ```
 
-After every `up`, the key is piped into `gpg --import` inside each running service that has `gpg`, and `user.signingkey`, `commit.gpgsign` and `tag.gpgsign` are set for the container user. The key never goes into the environment or the compose file, but it does end up in that user's keyring, so use a dedicated key without a passphrase. Use an object to override the sources, name the container `user`, or limit `services`. Add the public key to GitHub from the monitor's **Copy public key** button. A failure is reported as [`DEV_CONTAINER_D4005`](./docs/errors/DEV_CONTAINER_D4005.md) and does not stop the stack.
+After every `up`, the key is piped into `gpg --import` inside each running service that has `gpg`, and `user.signingkey`, `commit.gpgsign` and `tag.gpgsign` are set for the container user. The key never goes into the environment or the compose file, but it does end up in that user's keyring, so use a dedicated key without a passphrase. Use an object to override the sources, name the container `user`, or limit `services`. Add the public key to GitHub from the dashboard's **Copy public key** button. A failure is reported as [`DEV_CONTAINER_D4005`](./docs/errors/DEV_CONTAINER_D4005.md) and does not stop the stack.
 
 ### Request rules
 
@@ -178,7 +178,9 @@ Agent CLIs use their tokens directly, so letting them hold those tokens costs no
 
 Caged services cannot publish ports themselves; that would need a non-internal network. Listed `ports` are published by the relay on `bind` (default `127.0.0.1`) and forwarded into the cage. Services must listen on `0.0.0.0`.
 
-With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net:<port>`. Use a number, as in `{ port: 8100, tailnet: 443 }`, to serve the port on a different tailnet port; it must be unique per node. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
+With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net`, on port 443. Use a number, as in `{ port: 8100, tailnet: 8100 }`, to serve the port on another tailnet port. Each tailnet port is used once per node, so a second service on the same node needs its own number or its own `tailscale` node. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
+
+Set `domain` on a tailscale node (for example `tailscale: { hostname: 'agents', domain: 'tail1234.ts.net' }`) to tell the config your tailnet's name. The dashboard then lists every tailnet URL, including the dashboard's own, as quick links. One node's `domain` serves all the others; without it the list is empty.
 
 To give a service its own MagicDNS name, set `tailscale` on the service. It gets its own sidecar, `tailscale-<service>`, with its own state in `.dev-container/state/tailscale-<service>/`. Services without one use the top-level node. A node without its own `authKey` uses the top-level one, which defaults to `TS_AUTHKEY`. Ports stay unique across the stack, because the relay also publishes them on the host, but a tailnet port such as 443 can repeat across nodes.
 
@@ -208,8 +210,9 @@ dev-container setup [--yes]            scaffold the config, .env, .env.secret an
 dev-container generate                 write .dev-container/
 dev-container up [compose up flags]    generate, then docker compose up -d --build --remove-orphans
 dev-container compose <args...>        docker compose against the generated stack
-dev-container serve [--host] [--port]  serve the control API
-dev-container daemon run|install|uninstall  keep it running, upgrade on a schedule
+dev-container serve [--host] [--port]  serve the dashboard API
+dev-container upgrade [--force]        pull the checkout, rebuild and restart when HEAD moved
+dev-container daemon run|install|uninstall  keep the dashboard running, upgrade on a schedule
 ```
 
 `compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
@@ -251,9 +254,9 @@ services:
 
 Run `dev-container generate` before `docker compose up` so placeholders and env files are fresh.
 
-## Control API
+## Dashboard API
 
-`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small monitor page at `/`. It binds to `127.0.0.1:7357` by default (`control.host` and `control.port` in config), and every API request needs the bearer token from `.dev-container/control-token`. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, restarts or updates a service, and manages commit signing.
+`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small dashboard page at `/`. It binds to `127.0.0.1:7357` by default (`dashboard.host` and `dashboard.port` in config), and every API request needs the bearer token from `.dev-container/dashboard-token`. To choose the token yourself, set `DEV_CONTAINER_DASHBOARD_TOKEN` on the host or `dashboard.token` in the config. The env var wins over the config, and either one wins over the file, which is then not created. Prefer the env var when the config is committed. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, restarts or updates a service, and manages commit signing.
 
 | Endpoint | |
 | --- | --- |
@@ -264,46 +267,42 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 | `POST /restart` | restart the stack |
 | `POST /services/{name}/update`, `POST /update` | pull base images, rebuild and recreate |
 | `GET /services/{name}/gpg` | whether signing is on, and the secret keys in the service (`?user=` picks the container user) |
-| `GET /services/{name}/gpg/public` | the armored public key, to add to GitHub; the monitor has a copy button |
+| `GET /services/{name}/gpg/public` | the armored public key, to add to GitHub; the dashboard has a copy button |
 | `POST /services/{name}/gpg` | import `{ privateKey, publicKey?, user? }` and turn signing on |
 | `DELETE /services/{name}/gpg` | turn signing off; the key stays in the keyring |
 | `GET /openapi.json` | the OpenAPI 3.1 document |
 
-A service with `control: true` receives `DEV_CONTAINER_CONTROL_URL` and `DEV_CONTAINER_CONTROL_TOKEN` and reaches the server through the broker via `host.docker.internal`. On Linux, the host gateway is not loopback, so start the server with `serve --host 0.0.0.0` or with the docker bridge address.
+A service with `dashboard: true` receives `DEV_CONTAINER_DASHBOARD_URL` and `DEV_CONTAINER_DASHBOARD_TOKEN` and reaches the server through the broker via `host.docker.internal`. On Linux, the host gateway is not loopback, so start the server with `serve --host 0.0.0.0` or with the docker bridge address.
 
-To reach the monitor over the tailnet, give the control server a node of its own. A sidecar serves `https://<hostname>.<tailnet>.ts.net` and forwards to the host through `host.docker.internal`:
+To reach the dashboard over the tailnet, give the dashboard server a node of its own. A sidecar serves `https://<hostname>.<tailnet>.ts.net` and forwards to the host through `host.docker.internal`:
 
 ```ts
 export default defineConfig({
-  control: { port: 7357, host: '127.0.0.1', tailscale: { hostname: 'monitor' }, tailnetPort: 443 },
+  dashboard: { port: 7357, host: '127.0.0.1', tailscale: { hostname: 'dashboard' }, tailnetPort: 443 },
 })
 ```
 
 `dev-container serve` still has to run on the host, since it drives docker. On Linux the sidecar reaches the host through the docker gateway, so set `host` to `0.0.0.0` or the bridge address there. The token still guards every API call.
 
-To mount the API in your own server instead, use `createControlApp({ dir, token })`, which returns a Hono app.
+To mount the API in your own server instead, use `createDashboardApp({ dir, token })`, which returns a Hono app.
 
-## Keeping a host in sync
+## Keeping a host up to date
 
-For a stack kept in a git checkout on an always-on host, `dev-container sync` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs the `sync.commands` first, then `up`. A failed run leaves the old containers running and is retried on the next run. `sync --force` redeploys anyway.
+For a stack kept in a git checkout on an always-on host, `dev-container upgrade` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs `selfUpgrade.command` first, then `up --build`, which rebuilds the images and restarts the services. A failed run leaves the old containers running and is retried on the next run. `upgrade --force` redeploys anyway.
 
 ```ts
 export default defineConfig({
-  sync: { interval: 300, commands: ['pnpm install --frozen-lockfile'] },
+  selfUpgrade: { auto: true, interval: 300, command: 'pnpm install --frozen-lockfile' },
 })
 ```
+
+`command` takes one shell command or a list. With `auto: true`, the daemon runs the upgrade every `interval` seconds; the default is `auto: false`.
 
 ### The daemon
 
-`dev-container daemon run` serves the control API and monitor, like `serve`, and keeps running. `daemon install` registers it to start at login and restart whenever it exits: a launchd agent on macOS, a systemd user unit on Linux, logging to `.dev-container/daemon.log` on macOS. `daemon uninstall` removes it.
+`dev-container daemon run` serves the dashboard API and dashboard, like `serve`, and keeps running. `daemon install` registers it to start at login and restart whenever it exits: a launchd agent on macOS, a systemd user unit on Linux, logging to `.dev-container/daemon.log` on macOS. `daemon uninstall` removes it.
 
-With `sync.autoUpgrade: true`, the daemon runs `sync` every `sync.interval` seconds. Either way, the monitor's **Upgrade** button (`POST /upgrade`) runs `sync --force` on demand: it pulls the checkout, rebuilds the images and restarts the stack. After a deploy the daemon exits so its supervisor starts it again on the pulled code.
-
-```ts
-export default defineConfig({
-  sync: { autoUpgrade: true, interval: 300, commands: ['pnpm install --frozen-lockfile'] },
-})
-```
+The dashboard's **Upgrade** button (`POST /upgrade`) runs `upgrade --force` on demand, with or without `auto`. After a deploy the daemon exits so its supervisor starts it again on the pulled code.
 
 ## Using it with an orchestrator
 
@@ -315,7 +314,7 @@ Orchestrators run inside the cage like any other service, and their agents run a
 - [`pi`](./examples/pi): pi with an Anthropic subscription token.
 - [`claude`](./examples/claude): Claude Code as a shell agent, with an egress allowlist.
 
-Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `compose`, `buildStack` and `createControlApp`.
+Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `compose`, `buildStack` and `createDashboardApp`.
 
 ## Limitations
 

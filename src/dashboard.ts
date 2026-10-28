@@ -1,5 +1,6 @@
 import type { ServerType } from '@hono/node-server'
 import type { SSEStreamingApi } from 'hono/streaming'
+import type { TailscaleLink } from './compose'
 import type { GitTarget } from './git'
 import { Buffer } from 'node:buffer'
 import { execFile, spawn } from 'node:child_process'
@@ -18,13 +19,13 @@ import { disableSigning, enableSigning, publicKey, signingStatus } from './git'
 
 const run = promisify(execFile)
 
-/** The monitor page, built from `packages/monitor` into `dist/`; from source it sits one level up. */
-function monitorHtml(): string {
-  const built = ['./monitor.html', '../dist/monitor.html'].map(path => fileURLToPath(new URL(path, import.meta.url))).find(existsSync)
-  return built ? readFileSync(built, 'utf8') : '<!doctype html><title>dev-container monitor</title><p>The monitor page is not built. Run `pnpm build`.'
+/** The dashboard page, built from `packages/dashboard` into `dist/`; from source it sits one level up. */
+function dashboardHtml(): string {
+  const built = ['./dashboard.html', '../dist/dashboard.html'].map(path => fileURLToPath(new URL(path, import.meta.url))).find(existsSync)
+  return built ? readFileSync(built, 'utf8') : '<!doctype html><title>dev-container dashboard</title><p>The dashboard page is not built. Run `pnpm build`.'
 }
 
-export interface ControlOptions {
+export interface DashboardOptions {
   /** The `.dev-container` directory. */
   dir: string
   /** Bearer token every request must carry. */
@@ -33,6 +34,8 @@ export interface ControlOptions {
   docker?: string
   /** Pulls the checkout and redeploys; set by the daemon. Without it `POST /upgrade` is refused. */
   upgrade?: () => Promise<'up-to-date' | 'deployed'>
+  /** Tailnet URLs for the dashboard's quick links. */
+  links?: TailscaleLink[]
 }
 
 const ServiceName = z.string().regex(/^[a-z0-9][\w-]*$/).openapi({ param: { name: 'name', in: 'path' }, example: 'agent' })
@@ -87,6 +90,15 @@ const routes = {
     summary: 'List services with their state and health',
     responses: {
       200: { description: 'Services', content: { 'application/json': { schema: z.object({ services: z.array(Service) }) } } },
+      ...errors,
+    },
+  }),
+  links: createRoute({
+    method: 'get',
+    path: '/links',
+    summary: 'Tailnet URLs the stack is served on; empty until a tailscale node sets `domain`',
+    responses: {
+      200: { description: 'Links', content: { 'application/json': { schema: z.object({ links: z.array(z.object({ name: z.string().openapi({ example: 'agent:6767' }), url: z.string().openapi({ example: 'https://agents.tail1234.ts.net:6767' }) })) }) } } },
       ...errors,
     },
   }),
@@ -190,7 +202,7 @@ const routes = {
 type ServiceInfo = z.infer<typeof Service>
 
 /** HTTP API over the generated stack: status, resource usage, logs and restarts. */
-export function createControlApp({ dir, token, docker = 'docker', upgrade }: ControlOptions): OpenAPIHono {
+export function createDashboardApp({ dir, token, docker = 'docker', upgrade, links = [] }: DashboardOptions): OpenAPIHono {
   const compose = async (args: string[]): Promise<string> => (await run(docker, composeArgs(dir, args), { maxBuffer: 64 * 1024 * 1024 })).stdout
   const listServices = async (): Promise<ServiceInfo[]> => parseServices(await compose(['ps', '--all', '--format', 'json']))
   const streamLines = (stream: SSEStreamingApi, args: string[], event: string, transform: (line: string) => string | undefined): Promise<void> => {
@@ -219,7 +231,7 @@ export function createControlApp({ dir, token, docker = 'docker', upgrade }: Con
   })
 
   // The page holds no secrets; the token goes with every API call it makes.
-  app.get('/', c => c.html(monitorHtml()))
+  app.get('/', c => c.html(dashboardHtml()))
 
   const expected = Buffer.from(`Bearer ${token}`)
   app.use('*', async (c, next) => {
@@ -233,6 +245,8 @@ export function createControlApp({ dir, token, docker = 'docker', upgrade }: Con
   app.onError((error, c) => c.json(toBody(error instanceof Diagnostic ? error : dockerFailure(error, docker)), 502))
 
   app.openapi(routes.services, async c => c.json({ services: await listServices() }, 200))
+
+  app.openapi(routes.links, c => c.json({ links }, 200))
 
   app.openapi(routes.stats, async (c) => {
     const services = (await listServices()).filter(s => s.state === 'running')
@@ -311,22 +325,22 @@ export function createControlApp({ dir, token, docker = 'docker', upgrade }: Con
   app.openAPIRegistry.registerComponent('securitySchemes', 'bearer', { type: 'http', scheme: 'bearer' })
   app.doc31('/openapi.json', {
     openapi: '3.1.0',
-    info: { title: 'dev-container control API', version: '1' },
+    info: { title: 'dev-container dashboard API', version: '1' },
     security: [{ bearer: [] }],
   })
 
   return app
 }
 
-export interface ServeControlOptions extends ControlOptions {
+export interface ServeDashboardOptions extends DashboardOptions {
   /** Defaults to `127.0.0.1`. */
   hostname?: string
   port: number
 }
 
-/** Serves the control API over HTTP. */
-export function serveControl({ hostname = '127.0.0.1', port, ...options }: ServeControlOptions): ServerType {
-  return serve({ fetch: createControlApp(options).fetch, hostname, port })
+/** Serves the dashboard API over HTTP. */
+export function serveDashboard({ hostname = '127.0.0.1', port, ...options }: ServeDashboardOptions): ServerType {
+  return serve({ fetch: createDashboardApp(options).fetch, hostname, port })
 }
 
 function toBody(diagnostic: Diagnostic): z.infer<typeof DiagnosticBody> {

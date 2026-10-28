@@ -4,7 +4,7 @@ export const DOCS_BASE = 'https://github.com/antfu/dev-container/blob/main/docs/
 
 /**
  * Every user-facing failure. Codes are stable: `C` config, `S` secrets,
- * `N` network/ports/volumes, `D` docker and the control API. Broker codes
+ * `N` network/ports/volumes, `D` docker and the dashboard API. Broker codes
  * (`B`) live in `services/broker/rules.py` and share the docs directory.
  */
 export const diagnostics = /* #__PURE__ */ defineDiagnostics({
@@ -65,6 +65,10 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
       why: (p: { port: string, service: string }) => `Port ${p.port} on service ${p.service} sets \`tailnet\` but \`tailscale\` is not configured.`,
       fix: 'Add `tailscale: { hostname: \'...\' }` at the top level or on the service, and TS_AUTHKEY to .env.secret, or drop `tailnet: true`.',
     },
+    DEV_CONTAINER_N3008: {
+      why: (p: { port: number, first: string, second: string }) => `Services ${p.first} and ${p.second} are both served on tailnet port ${p.port} of the same tailscale node.`,
+      fix: 'Give one of them its own tailnet port, as in `{ port: 8100, tailnet: 8100 }`, or its own `tailscale` node.',
+    },
     DEV_CONTAINER_N3006: {
       why: (p: { service: string, paths: string[] }) => `Persist paths of service ${p.service} map to the same state directory: ${p.paths.join(', ')}.`,
       fix: 'Persist one of the paths\' common parent instead, or rename one of them.',
@@ -86,11 +90,11 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
       fix: 'The image needs `gpg` and `git`, and `git.gpg.user` must name a user that exists in it. Fix that, then run `dev-container up` again.',
     },
     DEV_CONTAINER_D4003: {
-      why: 'Missing or wrong bearer token for the control API.',
-      fix: 'Send `Authorization: Bearer <token>` with the token from .dev-container/control-token (or $DEV_CONTAINER_CONTROL_TOKEN in the cage).',
+      why: 'Missing or wrong bearer token for the dashboard API.',
+      fix: 'Send `Authorization: Bearer <token>` with the token from .dev-container/dashboard-token or $DEV_CONTAINER_DASHBOARD_TOKEN on the host (or $DEV_CONTAINER_DASHBOARD_TOKEN in the cage).',
     },
     DEV_CONTAINER_D4004: {
-      why: (p: { message: string }) => `Invalid control API request: ${p.message}`,
+      why: (p: { message: string }) => `Invalid dashboard API request: ${p.message}`,
       fix: 'Compare the request with GET /openapi.json.',
     },
   },

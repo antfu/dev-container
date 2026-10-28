@@ -1,4 +1,4 @@
-# DEV_CONTAINER_D4004: Control API: invalid request
+# DEV_CONTAINER_D4004: Dashboard API: invalid request
 
 The request's path or query does not match the API, for example a service name starting with `-` or a non-numeric `tail`.
 

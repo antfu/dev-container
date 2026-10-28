@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { up } from './docker'
 
-export interface SyncOptions {
+export interface UpgradeOptions {
   config: ResolvedConfig
   /** The project root, which has to be a git checkout. */
   root: string
@@ -15,7 +15,7 @@ export interface SyncOptions {
 }
 
 /** Whether HEAD moved since the last good deploy. */
-export function planSync({ deployed, head, force = false }: { deployed?: string, head: string, force?: boolean }): boolean {
+export function planUpgrade({ deployed, head, force = false }: { deployed?: string, head: string, force?: boolean }): boolean {
   return force || deployed !== head
 }
 
@@ -23,10 +23,10 @@ const git = (root: string, args: string[]): string => execFileSync('git', args, 
 
 /**
  * Fast-forwards the checkout and its submodules, then redeploys only when HEAD moved since the last good
- * deploy. The `sync.commands` run first, from the project root. A failure throws before the state is
+ * deploy. The `selfUpgrade.command` runs first, from the project root. A failure throws before the state is
  * written, so the next run retries and the previous containers keep running.
  */
-export async function sync({ config, root, force = false, onWarnings }: SyncOptions): Promise<'up-to-date' | 'deployed'> {
+export async function selfUpgrade({ config, root, force = false, onWarnings }: UpgradeOptions): Promise<'up-to-date' | 'deployed'> {
   const stateFile = join(root, '.dev-container', 'deployed')
   execFileSync('git', ['pull', '--ff-only'], { cwd: root, stdio: 'inherit' })
   if (existsSync(join(root, '.gitmodules')))
@@ -34,10 +34,10 @@ export async function sync({ config, root, force = false, onWarnings }: SyncOpti
 
   const head = git(root, ['rev-parse', 'HEAD'])
   const deployed = existsSync(stateFile) ? readFileSync(stateFile, 'utf8').trim() : undefined
-  if (!planSync({ deployed, head, force }))
+  if (!planUpgrade({ deployed, head, force }))
     return 'up-to-date'
 
-  for (const command of config.sync.commands)
+  for (const command of config.selfUpgrade.command)
     execFileSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' })
   const code = await up({ config, root, onWarnings })
   if (code !== 0)

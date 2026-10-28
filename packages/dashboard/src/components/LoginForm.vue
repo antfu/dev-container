@@ -9,10 +9,10 @@ const value = ref('')
 <template>
   <form class="panel mx-auto mt-24 max-w-sm p-5 flex flex-col gap-3" @submit.prevent="emit('connect', value.trim())">
     <h1 class="text-base font-semibold">
-      dev-container monitor
+      dev-container dashboard
     </h1>
-    <label class="label" for="token">Control token</label>
-    <input id="token" v-model="value" type="password" class="field font-mono" placeholder=".dev-container/control-token" autocomplete="current-password">
+    <label class="label" for="token">Dashboard token</label>
+    <input id="token" v-model="value" type="password" class="field font-mono" placeholder=".dev-container/dashboard-token" autocomplete="current-password">
     <p v-if="error" class="text-sm text-bad">
       {{ error }}
     </p>

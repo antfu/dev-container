@@ -15,3 +15,8 @@ export interface GpgStatus {
   signing: boolean
   keys: { uid: string, fingerprint: string }[]
 }
+
+export interface Link {
+  name: string
+  url: string
+}

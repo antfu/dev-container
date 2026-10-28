@@ -1,5 +1,5 @@
 import type { UserConfig } from '../src'
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -42,18 +42,34 @@ describe('generate', () => {
     expect(JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets[0].placeholder).toBe(placeholder)
   })
 
-  it('regenerates placeholders in both the broker and the cage, but keeps the control token', () => {
+  it('regenerates placeholders in both the broker and the cage, but keeps the dashboard token', () => {
     const root = project()
     const placeholder = () => {
       const { services } = run({ services: agent }, { NPM_TOKEN: 'npm_real' }, root)
       expect(services.broker.environment.DEV_CONTAINER_RULES).toContain(services.agent.environment.NPM_TOKEN)
       return services.agent.environment.NPM_TOKEN
     }
-    const token = () => readFileSync(join(root, '.dev-container/control-token'), 'utf8')
+    const token = () => readFileSync(join(root, '.dev-container/dashboard-token'), 'utf8')
 
     const [first, firstToken] = [placeholder(), token()]
     expect(placeholder()).not.toBe(first)
     expect(token()).toBe(firstToken)
+  })
+
+  it('takes the dashboard token from the environment instead of writing the file', () => {
+    const root = project()
+    const { services } = run({ services: { agent: { ...agent.agent, dashboard: true } } }, { DEV_CONTAINER_DASHBOARD_TOKEN: 'chosen' }, root)
+    expect(services.agent.environment.DEV_CONTAINER_DASHBOARD_TOKEN).toBe('chosen')
+    expect(existsSync(join(root, '.dev-container/dashboard-token'))).toBe(false)
+  })
+
+  it('takes the dashboard token from the config, below the environment', () => {
+    const root = project()
+    const dashboard = { token: 'from-config' }
+    const token = (env: NodeJS.ProcessEnv) => run({ dashboard, services: { agent: { ...agent.agent, dashboard: true } } }, env, root).services.agent.environment.DEV_CONTAINER_DASHBOARD_TOKEN
+    expect(token({})).toBe('from-config')
+    expect(token({ DEV_CONTAINER_DASHBOARD_TOKEN: 'chosen' })).toBe('chosen')
+    expect(existsSync(join(root, '.dev-container/dashboard-token'))).toBe(false)
   })
 
   it('reports every missing secret before writing anything', () => {
@@ -86,7 +102,7 @@ describe('generate', () => {
     expect(readFileSync(join(dir, 'env/tailscale.env'), 'utf8')).toBe(`TS_AUTHKEY='hub-key'\n`)
     expect(readFileSync(join(dir, 'env/tailscale-paseo.env'), 'utf8')).toBe(`TS_AUTHKEY='hub-key'\n`)
     expect(readFileSync(join(dir, 'env/tailscale-vi.env'), 'utf8')).toBe(`TS_AUTHKEY='vi-key'\n`)
-    expect(JSON.parse(readFileSync(join(dir, 'tailscale-paseo-serve.json'), 'utf8')).TCP).toEqual({ 6767: { HTTPS: true } })
+    expect(JSON.parse(readFileSync(join(dir, 'tailscale-paseo-serve.json'), 'utf8')).TCP).toEqual({ 443: { HTTPS: true } })
     expect(JSON.parse(readFileSync(join(dir, 'tailscale-serve.json'), 'utf8')).TCP).toEqual({})
   })
 })
