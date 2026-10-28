@@ -55,7 +55,8 @@ const PortRange = z.union([
 
 const Port = z.union([
   PortRange,
-  z.strictObject({ port: PortRange, tailnet: z.boolean().default(false) }),
+  // `true` serves the port on the tailnet as is; a number serves it on that tailnet port instead.
+  z.strictObject({ port: PortRange, tailnet: z.union([z.boolean(), z.number().int().min(1).max(65535)]).default(false) }),
 ]).transform(port => typeof port === 'object' ? port : { port, tailnet: false })
 
 const Tailscale = z.strictObject({

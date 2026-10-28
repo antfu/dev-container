@@ -92,6 +92,21 @@ describe('buildStack', () => {
     ])
   })
 
+  it('serves a tailnet port on another port, so nodes can all use 443', () => {
+    const { tailscaleServe } = build({
+      services: {
+        hub: { image: 'x', ports: [{ port: 3000, tailnet: 443 }], tailscale: { hostname: 'hub' } },
+        paseo: { image: 'x', ports: [{ port: 6767, tailnet: 443 }], tailscale: { hostname: 'paseo' } },
+      },
+    })
+    expect(tailscaleServe['tailscale-hub']).toEqual({
+      TCP: { 443: { HTTPS: true } },
+      // eslint-disable-next-line no-template-curly-in-string
+      Web: { '${TS_CERT_DOMAIN}:443': { Handlers: { '/': { Proxy: 'http://hub:3000' } } } },
+    })
+    expect(Object.keys(tailscaleServe['tailscale-paseo']!.TCP)).toEqual(['443'])
+  })
+
   it('serves a service with its own tailscale from its own node', () => {
     const stack = build({
       tailscale: { hostname: 'hub', authKey: { env: 'HUB_KEY' } },

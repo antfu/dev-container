@@ -80,6 +80,8 @@ interface PublishedPort {
   end: number
   /** The tailscale sidecar serving this port, if it is marked `tailnet`. */
   node?: string
+  /** The port the sidecar serves it on; defaults to `start`. */
+  tailnetPort?: number
 }
 
 export function envFilePath(dir: string, name: string): string {
@@ -159,9 +161,9 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const tailscaleServe: Record<string, TailscaleServe> = {}
   for (const node of nodes) {
     const serve: TailscaleServe = tailscaleServe[node.name] = { TCP: {}, Web: {} }
-    for (const { target, start } of ports.filter(p => p.node === node.name)) {
-      serve.TCP[start] = { HTTPS: true }
-      serve.Web[`\${TS_CERT_DOMAIN}:${start}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
+    for (const { target, start, tailnetPort = start } of ports.filter(p => p.node === node.name)) {
+      serve.TCP[tailnetPort] = { HTTPS: true }
+      serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = { Handlers: { '/': { Proxy: `http://${target}:${start}` } } }
     }
     const state = join(ctx.dir, 'state', node.name)
     persistDirs.push(state)
@@ -300,9 +302,9 @@ function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): Published
   return ports
 }
 
-function parsePort(service: string, target: string, port: string, tailnet: boolean, node: string | undefined): PublishedPort {
+function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
-  const parsed = { service, target, start, end, ...tailnet && { node } }
+  const parsed = { service, target, start, end, ...tailnet && { node }, ...typeof tailnet === 'number' && { tailnetPort: tailnet } }
   if (start < 1 || end > 65535 || end < start)
     throw diagnostics.DEV_CONTAINER_N3002({ port, service })
   // The relay runs one forwarder per port.

@@ -148,9 +148,9 @@ Agent CLIs use their tokens directly, so letting them hold those tokens costs no
 
 Caged services cannot publish ports themselves; that would need a non-internal network. Listed `ports` are published by the relay on `bind` (default `127.0.0.1`) and forwarded into the cage. Services must listen on `0.0.0.0`.
 
-With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net:<port>`. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
+With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net:<port>`. Use a number, as in `{ port: 8100, tailnet: 443 }`, to serve the port on a different tailnet port; it must be unique per node. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
 
-To give a service its own MagicDNS name, set `tailscale` on the service. It gets its own sidecar, `tailscale-<service>`, with its own state in `.dev-container/state/tailscale-<service>/`. Services without one use the top-level node. A node without its own `authKey` uses the top-level one, which defaults to `TS_AUTHKEY`. Ports stay unique across the stack, because the relay also publishes them on the host.
+To give a service its own MagicDNS name, set `tailscale` on the service. It gets its own sidecar, `tailscale-<service>`, with its own state in `.dev-container/state/tailscale-<service>/`. Services without one use the top-level node. A node without its own `authKey` uses the top-level one, which defaults to `TS_AUTHKEY`. Ports stay unique across the stack, because the relay also publishes them on the host, but a tailnet port such as 443 can repeat across nodes.
 
 ```ts
 export default defineConfig({
