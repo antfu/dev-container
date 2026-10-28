@@ -1,4 +1,4 @@
-name: Unit Test
+name: CI
 
 on:
   push:
@@ -12,8 +12,30 @@ jobs:
   unit-test:
     uses: sxzz/workflows/.github/workflows/unit-test.yml@main
 
-  # coverage:
-  #   uses: sxzz/workflows/.github/workflows/coverage.yml@main
-  #   needs: unit-test
-  #   permissions:
-  #     id-token: write
+  broker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s broker
+
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm build
+      - run: e2e/run.sh
+        env:
+          ACME_KEY: e2e-${{ github.run_id }}
