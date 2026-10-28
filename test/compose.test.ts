@@ -53,6 +53,7 @@ describe('buildStack', () => {
             ],
             "name": "GH_TOKEN",
             "placeholder": "dc-GH_TOKEN-0000000000000000",
+            "rules": [],
           },
           {
             "hosts": [
@@ -60,6 +61,7 @@ describe('buildStack', () => {
             ],
             "name": "ACME_KEY",
             "placeholder": "dc-ACME_KEY-1111111111111111",
+            "rules": [],
           },
         ],
       }
@@ -94,6 +96,18 @@ describe('buildStack', () => {
     expect(compose.name).toBe('my-project')
     expect(compose.networks.caged).toEqual({ internal: true })
     expect(compose.services.agent!.networks).toEqual(['caged'])
+  })
+
+  it('passes request rules to the broker in order', () => {
+    const { rules } = build({
+      secrets: [{
+        env: 'ACME_KEY',
+        hosts: ['api.acme.dev'],
+        rules: [{ action: 'allow', method: ['get', 'HEAD'], path: '/v1/**' }, { action: 'deny' }],
+      }],
+      services: { agent: { image: 'alpine' } },
+    })
+    expect(rules.secrets[0]!.rules).toEqual([{ action: 'allow', methods: ['GET', 'HEAD'], path: '/v1/**' }, { action: 'deny' }])
   })
 
   it('brackets an IPv6 bind address', () => {
@@ -136,6 +150,8 @@ describe('resolveConfig', () => {
     ['a malformed host pattern', 'secrets.0.hosts.0', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
     ['a relative persist path', 'services.a.persist.0', { services: { a: { image: 'x', persist: ['home'] } } }],
     ['a reserved volume name', 'services.a.volumes.0', { services: { a: { image: 'x', volumes: ['broker-ca:/stolen'] } } }],
+    ['a rule path with a query', 'secrets.0.rules.0.path', { secrets: [{ env: 'X', hosts: ['x.dev'], rules: [{ action: 'deny', path: '/a?b=1' }] }], services: { a: { image: 'x' } } }],
+    ['a rule with a bad method', 'secrets.0.rules.0.method', { secrets: [{ env: 'X', hosts: ['x.dev'], rules: [{ action: 'deny', method: 'GET /' }] }], services: { a: { image: 'x' } } }],
   ])('rejects %s', (_, path, config) => {
     expect(() => resolveConfig(config, '/work/dev-container.config.ts')).toThrow(expect.objectContaining({
       errors: [expect.objectContaining({ name: 'DEV_CONTAINER_C1002', data: { path }, sources: ['/work/dev-container.config.ts'] })],

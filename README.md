@@ -41,7 +41,8 @@ On every `up`, each brokered secret gets a fresh random placeholder such as `dc-
 
 1. Finds placeholders in the request headers, including inside `Authorization: Basic`, which is how git sends credentials.
 2. Replaces each one with the real value only when the request is HTTPS and its real upstream host matches the secret's `hosts`. It checks the CONNECT target, not the `Host` header, which the client controls.
-3. Answers `403` when a placeholder is sent to any other host, appears in a URL, or is stale. It logs a JSON line either way.
+3. Checks the secret's `rules` against the method and path, if it has any.
+4. Answers `403` when a placeholder is sent to any other host, appears in a URL, is stale, or a rule denies the request. It logs a JSON line either way.
 
 Caged services trust the broker's CA through environment variables only (`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`, `GIT_SSL_CAINFO`). Nothing is installed into your image, so any image works. Only the public certificate is shared; the CA key stays in the broker.
 
@@ -64,7 +65,12 @@ export default defineConfig({
 
   // More brokered secrets: the cage only ever sees placeholders.
   secrets: [
-    { env: 'ACME_KEY', hosts: ['api.acme.dev', '*.acme.dev:8443'] },
+    {
+      env: 'ACME_KEY',
+      hosts: ['api.acme.dev', '*.acme.dev:8443'],
+      // Optional; first match wins, unmatched requests are allowed.
+      rules: [{ action: 'deny', method: 'DELETE', path: '/v1/projects/**' }],
+    },
   ],
 
   // 'open' (default) or an allowlist; secret hosts are always allowed.
@@ -100,6 +106,29 @@ export default defineConfig({
 | `npm` | `NPM_TOKEN` | `NPM_TOKEN` | `registry.npmjs.org` |
 
 A builtin is on whenever its token is set in the shell or an `envFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
+
+### Request rules
+
+A brokered secret, builtins included, can limit which requests it is sent with. The broker checks `rules` in order whenever the secret's placeholder is in a request, and the first match wins. A request no rule matches is allowed, so end with `{ action: 'deny' }` to allow only what is listed:
+
+```ts
+export default defineConfig({
+  builtins: {
+    github: {
+      rules: [
+        { action: 'allow', method: ['GET', 'HEAD'] },
+        { action: 'allow', path: '/repos/antfu/dev-container/**' },
+        { action: 'deny' },
+      ],
+    },
+  },
+  // ...
+})
+```
+
+`method` is one method or a list, and `path` is a glob: `*` matches within one segment, a `**` segment matches any number of them. An omitted field matches anything. Paths are matched case-insensitively, without the query string, after decoding and resolving `//`, `.` and `..`, so encoded variants of a denied path are denied too. A denied request gets `403` with [`DEV_CONTAINER_B5007`](./docs/errors/DEV_CONTAINER_B5007.md).
+
+Git over HTTPS uses paths like `/<owner>/<repo>.git/git-receive-pack` on `github.com`, not the API paths on `api.github.com`; write rules for both if both are used.
 
 ### Secrets: brokered or cage-visible
 
@@ -205,6 +234,7 @@ Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `
 ## Limitations
 
 - **Open egress is the default.** It stops tokens from leaving, not data. A caged process can still send anything it can read, including cage-visible secrets, to any host. With `egress: { policy: 'allowlist' }` the broker also refuses CONNECT tunnels to unlisted hosts, so raw TCP is held to the list too.
+- **Request rules hold only for brokered secrets.** They decide whether a request may carry the secret, not what a caged process may do with credentials it holds itself, such as cookies in a signed-in browser.
 - **Only request headers are rewritten, and responses are passed through as they are.** Secrets in request bodies or query strings are not brokered. An endpoint that echoes request headers back, such as a debugging echo service, hands the real value to the cage.
 - **Clients must honour `HTTPS_PROXY`.** Anything else has no route out. Docker's embedded DNS can still resolve external names from the cage, which is a narrow side channel.
 - **Placeholders change on every run.** Tools must read tokens from the environment. A token copied into a file inside the cage, such as a hand-written `.npmrc` value, goes stale on the next `up` and is refused.

@@ -41,7 +41,7 @@ export interface ComposeFile {
 export interface BrokerRules {
   policy: 'open' | 'allowlist'
   allow: string[]
-  secrets: { name: string, placeholder: string, hosts: string[] }[]
+  secrets: { name: string, placeholder: string, hosts: string[], rules: { action: 'allow' | 'deny', methods?: string[], path?: string }[] }[]
 }
 
 interface TailscaleServe {
@@ -97,6 +97,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       name: secret.env,
       placeholder: placeholderOf(ctx, secret.env),
       hosts: secret.hosts,
+      rules: secret.rules.map(({ action, method, path }) => ({ action, ...method && { methods: method }, ...path && { path } })),
     })),
   }
 

@@ -9,6 +9,11 @@ export interface BrokerRules {
     name: string;
     placeholder: string;
     hosts: string[];
+    rules: {
+      action: 'allow' | 'deny';
+      methods?: string[];
+      path?: string;
+    }[];
   }[];
 }
 export interface ComposeFile {

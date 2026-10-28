@@ -29,3 +29,4 @@ Every error `dev-container` reports carries one of these codes, a fix, and a lin
 | [DEV_CONTAINER_B5004](./DEV_CONTAINER_B5004.md) | Broker: secret not bound to this host | either |
 | [DEV_CONTAINER_B5005](./DEV_CONTAINER_B5005.md) | Broker: secret over plain HTTP | container |
 | [DEV_CONTAINER_B5006](./DEV_CONTAINER_B5006.md) | Broker: secret has no value | host |
+| [DEV_CONTAINER_B5007](./DEV_CONTAINER_B5007.md) | Broker: request not permitted for this secret | either |

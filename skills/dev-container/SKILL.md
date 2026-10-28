@@ -49,6 +49,7 @@ The response body reads like a diagnostic, and the header `x-dev-container-diagn
 | `DEV_CONTAINER_B5001` | the host | Stop and ask the user to add the host to `egress.allow`. |
 | `DEV_CONTAINER_B5004` | you or the host | Send the token only to its bound hosts. If another host truly needs it, ask the user to add it to that secret's `hosts`. |
 | `DEV_CONTAINER_B5006` | the host | Ask the user to set the secret in `.env.secret` and run `dev-container up`. |
+| `DEV_CONTAINER_B5007` | you or the host | The secret's `rules` deny this method and path. Do the task another way; do not retry with an encoded or reshaped path. If it must be allowed, ask the user to change that secret's `rules`. |
 
 When the host has to act, quote the diagnostic's `fix` line to the user verbatim.
 
@@ -60,7 +61,11 @@ import type { UserConfig } from 'dev-container'
 export default {
   envFile: ['.env', '.env.secret'], // later files win; the shell env wins over both
   builtins: { npm: false }, // github/npm are on whenever their token is set
-  secrets: [{ env: 'ACME_KEY', hosts: ['api.acme.dev'] }], // brokered, placeholder in the cage
+  secrets: [{
+    env: 'ACME_KEY',
+    hosts: ['api.acme.dev'], // brokered, placeholder in the cage
+    rules: [{ action: 'allow', method: 'GET' }, { action: 'deny' }], // first match wins; unmatched is allowed
+  }],
   egress: { policy: 'allowlist', allow: ['registry.npmjs.org'] }, // default: { policy: 'open' }
   services: {
     agent: {

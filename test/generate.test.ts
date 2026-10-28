@@ -111,6 +111,23 @@ describe('builtin secrets', () => {
     expect(warnings).toEqual([])
   })
 
+  it('takes request rules while keeping the detected token', () => {
+    const { brokerEnv, services } = run({
+      builtins: { github: { rules: [{ action: 'deny', method: 'DELETE', path: '/repos/**' }] } },
+      services: agent,
+    }, { GH_TOKEN: 'ghp_real', NPM_TOKEN: 'npm_real' })
+    expect(brokerEnv).toContain(`DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'`)
+    const [github, npm] = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets
+    expect(github.rules).toEqual([{ action: 'deny', methods: ['DELETE'], path: '/repos/**' }])
+    expect(npm.rules).toEqual([])
+  })
+
+  it('stays off with rules but no token', () => {
+    const { warnings, services } = run({ builtins: { github: { rules: [{ action: 'deny' }] } }, services: agent }, { NPM_TOKEN: 'npm_real' })
+    expect(services.agent.environment.GH_TOKEN).toBeUndefined()
+    expect(warnings.map(w => w.name)).toEqual(['DEV_CONTAINER_S2002'])
+  })
+
   it('rejects a custom secret that claims a builtin variable', () => {
     expect(() => run({ secrets: [{ env: 'GITHUB_TOKEN', hosts: ['x.dev'] }], services: agent }, { GH_TOKEN: 'ghp_real' })).toThrow(expect.objectContaining({
       name: 'DEV_CONTAINER_C1003',

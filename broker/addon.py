@@ -46,6 +46,7 @@ class Broker:
             req.scheme,
             req.host,
             req.port,
+            req.method,
             req.url,
             req.headers.items(multi=True),
         )
