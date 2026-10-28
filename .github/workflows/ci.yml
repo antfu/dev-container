@@ -11,6 +11,9 @@ permissions: {}
 jobs:
   unit-test:
     uses: sxzz/workflows/.github/workflows/unit-test.yml@main
+    with:
+      # Tests drive POSIX shell fixtures and the stack is Linux containers.
+      os-matrix: '"ubuntu-latest"'
 
   broker:
     runs-on: ubuntu-latest
