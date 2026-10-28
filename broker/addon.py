@@ -5,11 +5,20 @@ import os
 
 from mitmproxy import http
 
-from rules import Rules, decide
+from rules import Rules, allowed, decide
 
 
 def log(event, **fields):
     print(json.dumps({"event": event, **fields}), flush=True)
+
+
+def block(flow, reason):
+    log("block", host=flow.request.host, port=flow.request.port, method=flow.request.method, reason=reason)
+    flow.response = http.Response.make(
+        403,
+        "dev-container broker blocked this request: %s\n" % reason,
+        {"content-type": "text/plain"},
+    )
 
 
 class Broker:
@@ -22,8 +31,16 @@ class Broker:
             missing=[s.name for s in self.rules.secrets if not s.value],
         )
 
+    def http_connect(self, flow: http.HTTPFlow):
+        # Tunnels that turn out not to carry HTTP are relayed as raw TCP without
+        # reaching `request`, so the allowlist must also hold at CONNECT time.
+        if not allowed(self.rules, flow.request.host, flow.request.port):
+            block(flow, "host %s is not on the allowlist" % flow.request.host)
+
     def request(self, flow: http.HTTPFlow):
         req = flow.request
+        # Inside a CONNECT tunnel mitmproxy sets host/port from the tunnel target,
+        # not from the client-sent Host header.
         decision = decide(
             self.rules,
             req.scheme,
@@ -32,23 +49,12 @@ class Broker:
             req.url,
             req.headers.items(multi=True),
         )
-        if not decision.blocked and decision.injected:
-            # Inside a CONNECT tunnel the upstream connection is fixed; refuse if it disagrees.
-            address = flow.server_conn.address
-            if address and (address[0].lower().rstrip("."), address[1]) != (req.host.lower().rstrip("."), req.port):
-                decision.blocked = "upstream %s:%s does not match %s:%s" % (address[0], address[1], req.host, req.port)
-
         if decision.blocked:
-            log("block", host=req.host, port=req.port, method=req.method, reason=decision.blocked)
-            flow.response = http.Response.make(
-                403,
-                "dev-container broker blocked this request: %s\n" % decision.blocked,
-                {"content-type": "text/plain"},
+            block(flow, decision.blocked)
+        elif decision.injected:
+            req.headers = http.Headers(
+                [(k.encode("utf-8", "surrogateescape"), v.encode("utf-8", "surrogateescape")) for k, v in decision.headers]
             )
-            return
-
-        if decision.injected:
-            req.headers = http.Headers([(k.encode(), v.encode()) for k, v in decision.headers])
             log("inject", host=req.host, method=req.method, secrets=decision.injected)
 
 

@@ -53,19 +53,29 @@ def host_matches(pattern, host, port):
     return host == name
 
 
+def allowed(rules, host, port):
+    """Egress policy for a target; secret hosts are always reachable."""
+    if rules.policy != "allowlist":
+        return True
+    patterns = rules.allow + tuple(h for s in rules.secrets for h in s.hosts)
+    return any(host_matches(p, _normalize(host), port) for p in patterns)
+
+
+def _normalize(host):
+    return host.lower().rstrip(".")
+
+
 def decide(rules, scheme, host, port, url, headers):
     """Decide what to do with one request.
 
     `host`/`port` MUST be the real upstream target (the CONNECT authority or
     absolute-form URL), never the client-controlled Host header.
     """
-    host = host.lower().rstrip(".")
+    host = _normalize(host)
     by_placeholder = {s.placeholder: s for s in rules.secrets}
 
-    if rules.policy == "allowlist":
-        patterns = rules.allow + tuple(h for s in rules.secrets for h in s.hosts)
-        if not any(host_matches(p, host, port) for p in patterns):
-            return Decision(blocked="host %s is not on the allowlist" % host)
+    if not allowed(rules, host, port):
+        return Decision(blocked="host %s is not on the allowlist" % host)
 
     if PLACEHOLDER.search(url):
         return Decision(blocked="placeholder in URL")
