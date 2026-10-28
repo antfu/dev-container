@@ -77,6 +77,7 @@ export default defineConfig({
   egress: { policy: 'allowlist', allow: ['registry.npmjs.org', '*.githubusercontent.com'] },
 
   // Optional sidecar; TS_AUTHKEY comes from the env unless `authKey` says otherwise.
+  // A service can set its own `tailscale` to get a separate node.
   tailscale: { hostname: 'agents' },
 
   services: {
@@ -148,6 +149,17 @@ Agent CLIs use their tokens directly, so letting them hold those tokens costs no
 Caged services cannot publish ports themselves; that would need a non-internal network. Listed `ports` are published by the relay on `bind` (default `127.0.0.1`) and forwarded into the cage. Services must listen on `0.0.0.0`.
 
 With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net:<port>`. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
+
+To give a service its own MagicDNS name, set `tailscale` on the service. It gets its own sidecar, `tailscale-<service>`, with its own state in `.dev-container/state/tailscale-<service>/`. Services without one use the top-level node. A node without its own `authKey` uses the top-level one, which defaults to `TS_AUTHKEY`. Ports stay unique across the stack, because the relay also publishes them on the host.
+
+```ts
+export default defineConfig({
+  services: {
+    paseo: { image: 'ghcr.io/getpaseo/paseo:latest', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } },
+    vi: { build: './vi', ports: [{ port: 5656, tailnet: true }], tailscale: { hostname: 'vi' } },
+  },
+})
+```
 
 ### Persistence
 

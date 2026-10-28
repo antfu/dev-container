@@ -68,16 +68,18 @@ describe('buildStack', () => {
     `)
     expect(stack.tailscaleServe).toMatchInlineSnapshot(`
       {
-        "TCP": {
-          "6767": {
-            "HTTPS": true,
+        "tailscale": {
+          "TCP": {
+            "6767": {
+              "HTTPS": true,
+            },
           },
-        },
-        "Web": {
-          "\${TS_CERT_DOMAIN}:6767": {
-            "Handlers": {
-              "/": {
-                "Proxy": "http://agent:6767",
+          "Web": {
+            "\${TS_CERT_DOMAIN}:6767": {
+              "Handlers": {
+                "/": {
+                  "Proxy": "http://agent:6767",
+                },
               },
             },
           },
@@ -88,6 +90,32 @@ describe('buildStack', () => {
       '/work/my-project/.dev-container/state/agent/home-paseo',
       '/work/my-project/.dev-container/state/tailscale',
     ])
+  })
+
+  it('serves a service with its own tailscale from its own node', () => {
+    const stack = build({
+      tailscale: { hostname: 'hub', authKey: { env: 'HUB_KEY' } },
+      services: {
+        hub: { image: 'x', ports: [{ port: 3000, tailnet: true }] },
+        paseo: { image: 'x', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } },
+      },
+    })
+    expect(Object.keys(stack.tailscaleServe)).toEqual(['tailscale', 'tailscale-paseo'])
+    expect(Object.keys(stack.tailscaleServe['tailscale-paseo']!.TCP)).toEqual(['6767'])
+    expect(Object.keys(stack.tailscaleServe.tailscale!.TCP)).toEqual(['3000'])
+    expect(stack.compose.services['tailscale-paseo']).toMatchObject({
+      env_file: [{ path: '/work/my-project/.dev-container/env/tailscale-paseo.env', required: true }],
+      environment: { TS_HOSTNAME: 'paseo' },
+      volumes: [
+        '/work/my-project/.dev-container/state/tailscale-paseo:/var/lib/tailscale',
+        '/work/my-project/.dev-container/tailscale-paseo-serve.json:/config/serve.json:ro',
+      ],
+    })
+  })
+
+  it('needs no top-level tailscale when every tailnet service has its own', () => {
+    const { compose } = build({ services: { paseo: { image: 'x', ports: [{ port: 6767, tailnet: true }], tailscale: { hostname: 'paseo' } } } })
+    expect(Object.keys(compose.services)).toEqual(['broker', 'paseo', 'relay', 'tailscale-paseo'])
   })
 
   it('omits the relay and tailscale when nothing is published', () => {
@@ -122,7 +150,7 @@ describe('buildStack', () => {
     expect(compose.services.agent!.networks).toBeUndefined()
     expect(compose.services.browser!.networks).toEqual(['caged'])
     expect(compose.services.relay!.command).toEqual(['browser:6901', 'browser:6767'])
-    expect(Object.values(tailscaleServe!.Web).map(web => web.Handlers['/']!.Proxy)).toEqual(['http://browser:6767'])
+    expect(Object.values(tailscaleServe.tailscale!.Web).map(web => web.Handlers['/']!.Proxy)).toEqual(['http://browser:6767'])
   })
 
   it('brackets an IPv6 bind address', () => {
@@ -164,6 +192,7 @@ describe('resolveConfig', () => {
   it.each<[string, string, UserConfig]>([
     ['no services', 'services', { services: {} }],
     ['a reserved service name', 'services', { services: { broker: { image: 'x' } } }],
+    ['a service name with the tailscale- prefix', 'services', { services: { 'tailscale-a': { image: 'x' } } }],
     ['a service without image or build', 'services.a', { services: { a: {} } }],
     ['a malformed host pattern', 'secrets.0.hosts.0', { secrets: [{ env: 'X', hosts: ['https://x.dev'] }], services: { a: { image: 'x' } } }],
     ['a relative persist path', 'services.a.persist.0', { services: { a: { image: 'x', persist: ['home'] } } }],

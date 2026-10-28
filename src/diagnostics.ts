@@ -67,7 +67,7 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
     },
     DEV_CONTAINER_N3005: {
       why: (p: { port: string, service: string }) => `Port ${p.port} on service ${p.service} sets \`tailnet\` but \`tailscale\` is not configured.`,
-      fix: 'Add `tailscale: { hostname: \'...\' }` and TS_AUTHKEY to .env.secret, or drop `tailnet: true`.',
+      fix: 'Add `tailscale: { hostname: \'...\' }` at the top level or on the service, and TS_AUTHKEY to .env.secret, or drop `tailnet: true`.',
     },
     DEV_CONTAINER_N3006: {
       why: (p: { service: string, paths: string[] }) => `Persist paths of service ${p.service} map to the same state directory: ${p.paths.join(', ')}.`,
