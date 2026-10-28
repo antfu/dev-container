@@ -16,7 +16,7 @@ export function wantsJson(flag: boolean): boolean {
 }
 
 /** Writes diagnostics to stderr, as ANSI for people or NDJSON for agents. */
-function report(items: Diagnostic<unknown>[], level: 'error' | 'warning', json: boolean): void {
+export function report(items: Diagnostic<unknown>[], level: 'error' | 'warning', json: boolean): void {
   for (const diagnostic of items) {
     process.stderr.write(json
       ? `${JSON.stringify({ level, ...diagnostic.toJSON(), stack: undefined, cause: undefined })}\n`

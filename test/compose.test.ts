@@ -1,7 +1,8 @@
 import type { UserConfig } from '../src'
 import { describe, expect, it } from 'vitest'
 import { stringify } from 'yaml'
-import { buildStack, presets, resolveConfig } from '../src'
+import { buildStack, resolveConfig } from '../src'
+import { BUILTINS } from '../src/builtins'
 
 const ctx = {
   root: '/work/my-project',
@@ -18,7 +19,7 @@ function build(config: UserConfig) {
 describe('buildStack', () => {
   it('generates a caged stack with broker, relay and tailscale', () => {
     const stack = build({
-      secrets: [presets.github(), { env: 'ACME_KEY', hosts: ['*.acme.dev'] }],
+      secrets: [BUILTINS.github.secret, { env: 'ACME_KEY', hosts: ['*.acme.dev'] }],
       egress: { policy: 'allowlist', allow: ['registry.npmjs.org'] },
       tailscale: { hostname: 'agents' },
       services: {
@@ -106,7 +107,7 @@ describe('buildStack', () => {
   })
 
   it('never puts real secret values into the compose file', () => {
-    const { compose } = build({ secrets: [presets.github()], services: { agent: { image: 'alpine' } } })
+    const { compose } = build({ secrets: [BUILTINS.github.secret], services: { agent: { image: 'alpine' } } })
     const environment = compose.services.agent!.environment!
     expect(environment.GH_TOKEN).toBe(ctx.placeholders.GH_TOKEN)
     expect(environment.GITHUB_TOKEN).toBe(ctx.placeholders.GH_TOKEN)

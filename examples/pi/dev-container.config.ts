@@ -1,8 +1,7 @@
-import { defineConfig, presets } from 'dev-container'
+import { defineConfig } from 'dev-container'
 
 /** Interactive: `dev-container up`, then `dev-container compose exec pi pi`. */
 export default defineConfig({
-  secrets: [presets.github()],
   services: {
     pi: {
       build: '.',

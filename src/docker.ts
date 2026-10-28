@@ -33,8 +33,9 @@ export function dockerFailure(error: Error, docker: string): Diagnostic {
   return diagnostics.DEV_CONTAINER_D4002({ output: stderr || error.message, cause: error })
 }
 
-/** Generates `.dev-container/` and starts the stack. */
-export function up(options: GenerateOptions & { args?: string[], docker?: string }): Promise<number> {
-  const { dir } = generate(options)
+/** Generates `.dev-container/` and starts the stack; `onWarnings` sees non-fatal findings before docker runs. */
+export function up(options: GenerateOptions & { args?: string[], docker?: string, onWarnings?: (warnings: Diagnostic<unknown>[]) => void }): Promise<number> {
+  const { dir, warnings } = generate(options)
+  options.onWarnings?.(warnings)
   return compose(['up', '-d', '--build', '--remove-orphans', ...options.args ?? []], { dir, docker: options.docker })
 }

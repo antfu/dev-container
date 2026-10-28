@@ -1,8 +1,7 @@
-import { defineConfig, presets } from 'dev-container'
+import { defineConfig } from 'dev-container'
 
 /** Paseo's daemon runs every agent inside this one caged container. */
 export default defineConfig({
-  secrets: [presets.github()],
   tailscale: { hostname: 'paseo' },
   services: {
     paseo: {
