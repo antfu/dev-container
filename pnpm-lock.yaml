@@ -220,6 +220,19 @@ catalogs:
     '@antfu/utils':
       specifier: ^9.3.0
       version: 9.3.0
+  prod:
+    defu:
+      specifier: ^6.1.7
+      version: 6.1.7
+    unconfig:
+      specifier: ^7.5.0
+      version: 7.5.0
+    yaml:
+      specifier: ^2.9.1
+      version: 2.9.1
+    zod:
+      specifier: ^4.6.7
+      version: 4.6.7
   testing:
     tsdown-stale-guard:
       specifier: ^0.1.3
@@ -238,6 +251,19 @@ catalogs:
 importers:
 
   .:
+    dependencies:
+      defu:
+        specifier: catalog:prod
+        version: 6.1.7
+      unconfig:
+        specifier: catalog:prod
+        version: 7.5.0
+      yaml:
+        specifier: catalog:prod
+        version: 2.9.1
+      zod:
+        specifier: catalog:prod
+        version: 4.6.7
     devDependencies:
       '@antfu/eslint-config':
         specifier: catalog:cli

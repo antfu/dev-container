@@ -1,0 +1,154 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildStack > generates a caged stack with broker, relay and tailscale 1`] = `
+"name: my-project
+services:
+  broker:
+    build:
+      context: /pkg/broker
+    networks:
+      - caged
+      - egress
+    env_file:
+      - path: /work/my-project/.dev-container/env/broker.env
+        required: true
+    environment:
+      DEV_CONTAINER_RULES: /etc/dev-container/rules.json
+    volumes:
+      - /work/my-project/.dev-container/rules.json:/etc/dev-container/rules.json:ro
+      - broker-ca:/home/mitmproxy/.mitmproxy
+      - ca:/etc/dev-container/ca
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import os,socket;assert os.path.exists('/etc/dev-container/ca/mitmproxy-ca-cert.pem');socket.create_connection(('127.0.0.1',8080),2)
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+  agent:
+    image: ghcr.io/getpaseo/paseo:latest
+    command:
+      - sh
+      - -c
+      - echo $$HOME
+    environment:
+      HTTP_PROXY: http://broker:8080
+      HTTPS_PROXY: http://broker:8080
+      http_proxy: http://broker:8080
+      https_proxy: http://broker:8080
+      NO_PROXY: localhost,127.0.0.1,::1,agent
+      no_proxy: localhost,127.0.0.1,::1,agent
+      NODE_USE_ENV_PROXY: "1"
+      SSL_CERT_FILE: /etc/dev-container/ca/mitmproxy-ca-cert.pem
+      NODE_EXTRA_CA_CERTS: /etc/dev-container/ca/mitmproxy-ca-cert.pem
+      REQUESTS_CA_BUNDLE: /etc/dev-container/ca/mitmproxy-ca-cert.pem
+      CURL_CA_BUNDLE: /etc/dev-container/ca/mitmproxy-ca-cert.pem
+      GIT_SSL_CAINFO: /etc/dev-container/ca/mitmproxy-ca-cert.pem
+      GH_TOKEN: dc-GH_TOKEN-0000000000000000
+      GITHUB_TOKEN: dc-GH_TOKEN-0000000000000000
+      ACME_KEY: dc-ACME_KEY-1111111111111111
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: credential.https://github.com.helper
+      GIT_CONFIG_VALUE_0: "!f() { test \\"$$1\\" = get && printf 'username=x-access-token\\\\npassword=%s\\\\n' \\"$$GH_TOKEN\\"; }; f"
+      DEV_CONTAINER_CONTROL_URL: http://host.docker.internal:7357
+      DEV_CONTAINER_CONTROL_TOKEN: control-token
+      FOO: bar
+    env_file:
+      - path: /work/my-project/.dev-container/env/agent.env
+        required: true
+    networks:
+      - caged
+    volumes:
+      - ca:/etc/dev-container/ca:ro
+      - /work/my-project/projects:/workspace
+      - cache:/cache
+      - /work/my-project/.dev-container/state/agent/home-paseo:/home/paseo
+    depends_on:
+      broker:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 4g
+  relay:
+    build:
+      context: /pkg/relay
+    command:
+      - agent:6767
+      - agent:5170-5172
+    networks:
+      - caged
+      - egress
+    ports:
+      - 127.0.0.1:6767:6767
+      - 127.0.0.1:5170-5172:5170-5172
+    restart: unless-stopped
+  tailscale:
+    image: tailscale/tailscale:v1.104.2
+    networks:
+      - caged
+      - egress
+    env_file:
+      - path: /work/my-project/.dev-container/env/tailscale.env
+        required: true
+    environment:
+      TS_HOSTNAME: agents
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_USERSPACE: "true"
+      TS_AUTH_ONCE: "true"
+    volumes:
+      - /work/my-project/.dev-container/state/tailscale:/var/lib/tailscale
+      - /work/my-project/.dev-container/tailscale-serve.json:/config/serve.json:ro
+    restart: unless-stopped
+networks:
+  caged:
+    internal: true
+  egress: {}
+volumes:
+  ca: {}
+  broker-ca: {}
+  cache: {}
+"
+`;
+
+exports[`buildStack > rejects a reversed range 1`] = `[Error: Invalid port range 3002-3000 on service a]`;
+
+exports[`buildStack > rejects a tailnet range 1`] = `[Error: Port ranges cannot be served on the tailnet (3000-3001 on service a)]`;
+
+exports[`buildStack > rejects overlapping ports 1`] = `[Error: Port 3001 is published by both a and b]`;
+
+exports[`buildStack > rejects tailnet without tailscale 1`] = `[Error: Port 3000 on service a sets \`tailnet\` but \`tailscale\` is not configured]`;
+
+exports[`resolveConfig > rejects a malformed host pattern 1`] = `
+[Error: Invalid dev-container config:
+✖ must be \`host\`, \`*.host\`, optionally with \`:port\`
+  → at secrets[0].hosts[0]]
+`;
+
+exports[`resolveConfig > rejects a relative persist path 1`] = `
+[Error: Invalid dev-container config:
+✖ Invalid string: must start with "/"
+  → at services.a.persist[0]]
+`;
+
+exports[`resolveConfig > rejects a reserved service name 1`] = `
+[Error: Invalid dev-container config:
+✖ service names broker, relay, tailscale are reserved
+  → at services]
+`;
+
+exports[`resolveConfig > rejects a service without image or build 1`] = `
+[Error: Invalid dev-container config:
+✖ requires \`image\` or \`build\`
+  → at services.a]
+`;
+
+exports[`resolveConfig > rejects no services 1`] = `
+[Error: Invalid dev-container config:
+✖ at least one service is required
+  → at services]
+`;

@@ -1,0 +1,66 @@
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
+import { generate, presets, resolveConfig } from '../src'
+
+function project() {
+  return mkdtempSync(join(tmpdir(), 'dev-container-'))
+}
+
+describe('generate', () => {
+  it('writes resolved secrets only to 0600 env files', () => {
+    const root = project()
+    writeFileSync(join(root, 'secrets.env'), 'ACME_KEY=from-file\n')
+    const config = resolveConfig({
+      envFile: 'secrets.env',
+      secrets: [presets.github(), { env: 'ACME_KEY', hosts: ['api.acme.dev'] }, { env: 'CMD_KEY', hosts: ['x.dev'], from: { command: 'echo from-command' } }],
+      services: { agent: { image: 'alpine', env: { PASSWORD: { env: 'APP_PASSWORD' } } } },
+    })
+    const { dir, composeFile } = generate({ config, root, env: { GH_TOKEN: 'ghp_real', APP_PASSWORD: 'hunter2' } })
+
+    const brokerEnv = join(dir, 'env/broker.env')
+    expect(readFileSync(brokerEnv, 'utf8')).toBe(
+      `DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='from-file'\nDEV_CONTAINER_SECRET_CMD_KEY='from-command'\n`,
+    )
+    expect(statSync(brokerEnv).mode & 0o777).toBe(0o600)
+    expect(readFileSync(join(dir, 'env/agent.env'), 'utf8')).toBe(`PASSWORD='hunter2'\n`)
+
+    const compose = readFileSync(composeFile, 'utf8')
+    expect(compose).not.toContain('ghp_real')
+    expect(compose).not.toContain('hunter2')
+    const placeholder: string = parse(compose).services.agent.environment.GH_TOKEN
+    expect(placeholder).toMatch(/^dc-GH_TOKEN-[0-9a-f]{16}$/)
+    expect(JSON.parse(readFileSync(join(dir, 'rules.json'), 'utf8')).secrets[0].placeholder).toBe(placeholder)
+  })
+
+  it('regenerates placeholders but keeps the control token', () => {
+    const root = project()
+    const config = resolveConfig({ secrets: [presets.npm()], services: { agent: { image: 'alpine' } } })
+    const read = () => JSON.parse(readFileSync(join(root, '.dev-container/rules.json'), 'utf8')).secrets[0].placeholder
+    const token = () => readFileSync(join(root, '.dev-container/control-token'), 'utf8')
+
+    generate({ config, root, env: { NPM_TOKEN: 'npm_real' } })
+    const [first, firstToken] = [read(), token()]
+    generate({ config, root, env: { NPM_TOKEN: 'npm_real' } })
+    expect(read()).not.toBe(first)
+    expect(token()).toBe(firstToken)
+  })
+
+  it('reports every missing secret before writing anything', () => {
+    const root = project()
+    const config = resolveConfig({
+      secrets: [presets.github(), presets.npm()],
+      tailscale: { hostname: 'h' },
+      services: { agent: { image: 'alpine' } },
+    })
+    expect(() => generate({ config, root, env: {} })).toThrowErrorMatchingInlineSnapshot(`
+      [Error: Could not resolve secrets:
+        - secret GH_TOKEN: $GH_TOKEN is not set in the environment or envFile
+        - secret NPM_TOKEN: $NPM_TOKEN is not set in the environment or envFile
+        - tailscale.authKey: $TS_AUTHKEY is not set in the environment or envFile]
+    `)
+    expect(() => statSync(join(root, '.dev-container'))).toThrow()
+  })
+})
