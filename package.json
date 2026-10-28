@@ -31,7 +31,10 @@
     "dev-container": "./dist/cli.mjs"
   },
   "files": [
-    "broker",
+    "broker/Dockerfile",
+    "broker/addon.py",
+    "broker/entrypoint.sh",
+    "broker/rules.py",
     "dist",
     "relay"
   ],
