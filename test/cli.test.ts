@@ -56,6 +56,17 @@ describe('cli', () => {
     })
   })
 
+  it('sets up a project without prompting when not on a terminal', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
+    const bin = mkdtempSync(join(tmpdir(), 'dev-container-bin-'))
+    writeFileSync(join(bin, 'gh'), '#!/bin/sh\necho gho_from_gh\n', { mode: 0o755 })
+    const result = run(root, ['setup'], { PATH: `${bin}:${process.env.PATH}` })
+    expect(result.code).toBe(0)
+    expect(result.output).toContain('✔ filled GH_TOKEN in .env.secret from `gh auth token`\n')
+    expect(result.output).toContain('Next: review dev-container.config.ts, then run `npx dev-container up`.')
+    expect(run(root, ['generate']).code).toBe(0)
+  })
+
   it('rejects unknown commands', () => {
     const root = mkdtempSync(join(tmpdir(), 'dev-container-cli-'))
     writeFileSync(join(root, 'dev-container.config.mjs'), `export default { services: { agent: { image: 'alpine' } } }\n`)
