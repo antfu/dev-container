@@ -3,7 +3,8 @@
 Claude Code as a shell agent in a cage. Outbound traffic is limited to an allowlist: the Anthropic hosts and the npm registry.
 
 ```sh
-npx @antfu/dev-container setup
+cp .env.example .env
+cp .env.secret.example .env.secret # then fill it in
 dev-container up
 dev-container compose exec claude claude
 ```

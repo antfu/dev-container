@@ -12,6 +12,8 @@ A shell agent whose commits and tags are signed with an SSH key. Git is configur
 3. Set your name and email under `git` in the config, then start it:
 
    ```sh
+   cp .env.example .env
+   cp .env.secret.example .env.secret
    dev-container up
    dev-container compose exec agent bash
    ```

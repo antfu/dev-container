@@ -7,12 +7,12 @@ Run any agent, orchestrator or command in a network-caged container whose tokens
 
 `dev-container` turns a small config into a Docker Compose stack:
 
-- **broker**: a [mitmproxy](https://mitmproxy.org) sidecar and the only way out of the cage. It holds the real tokens and swaps them in at egress, only towards the hosts each token is bound to.
-- **your services**: any image or Dockerfile, on an `internal` network with no route to anything but the broker. They see placeholders, never the real values.
-- **relay** (when you publish ports): forwards `127.0.0.1` ports on the host into the cage.
-- **tailscale** (optional): serves chosen ports on your tailnet over HTTPS.
-
-It has no opinion about what runs inside: [Paseo](https://github.com/getpaseo/paseo), opencode, Claude Code, pi, a hub like [agent-container](https://github.com/antfu/agent-container), or a shell.
+- 🔐 **broker**: a [mitmproxy](https://mitmproxy.org) sidecar and the only way out of the cage. It holds the real tokens and swaps them in at egress, only towards the hosts each token is bound to.
+- 📦 **your services**: any image or Dockerfile, on an `internal` network with no route to anything but the broker. They see placeholders, never the real values.
+- 🚧 [**egress filter**](#config): an optional allowlist for network requests. The broker refuses any request, and any CONNECT tunnel, to a host that is not listed.
+- 🔁 **relay** (when you publish ports): forwards `127.0.0.1` ports on the host into the cage.
+- 🌐 [**tailscale**](#ports-relay-and-tailnet) (optional): serves chosen ports on your tailnet over HTTPS.
+- 📊 **dashboard**: a lightweight page for managing the services. It shows state, health, CPU and memory, tails logs, and restarts or updates a service.
 
 ## Quick start
 
@@ -24,7 +24,7 @@ npx @antfu/dev-container setup
 
 - `dev-container.config.ts` with one idle `agent` service
 - `.env` for plain settings
-- `.env.secret` (mode `0600`), with empty `GH_TOKEN` and `NPM_TOKEN` entries to fill in
+- `.env.secret` (mode `0600`), with empty `GITHUB_TOKEN` and `NPM_TOKEN` entries to fill in
 - `.gitignore` entries for `.env`, `.env.secret` and `.dev-container/`
 
 Run it again any time; it only fills gaps and never overwrites existing values. Without a terminal, or when an AI agent runs it, it takes the defaults (`node:24`, no ports) and doesn't prompt; `--yes` does the same.
@@ -32,12 +32,12 @@ Run it again any time; it only fills gaps and never overwrites existing values. 
 ```sh
 npx @antfu/dev-container up
 npx @antfu/dev-container compose exec agent bash
-# inside: $GH_TOKEN is a placeholder, yet `git push` and `gh` work
+# inside: $GITHUB_TOKEN is a placeholder, yet `git push` and `gh` work
 ```
 
 ## How tokens stay out
 
-On every `up`, each brokered secret gets a fresh random placeholder such as `dc-GH_TOKEN-3f9c0a1b2c3d4e5f`. Caged services receive the placeholder under the secret's variable names. The broker gets the real values and the rules, inline in its environment, so every `up` recreates it in step with the cage. For each request, the broker:
+On every `up`, each brokered secret gets a fresh random placeholder such as `dc-GITHUB_TOKEN-3f9c0a1b2c3d4e5f`. Caged services receive the placeholder under the secret's variable names. The broker gets the real values and the rules, inline in its environment, so every `up` recreates it in step with the cage. For each request, the broker:
 
 1. Finds placeholders in the request headers, including inside `Authorization: Basic`, which is how git sends credentials.
 2. Replaces each one with the real value only when the request is HTTPS and its real upstream host matches the secret's `hosts`. It checks the CONNECT target, not the `Host` header, which the client controls.
@@ -115,7 +115,7 @@ export default defineConfig({
 
 | Builtin | Detected from | Cage variables | Bound hosts |
 | --- | --- | --- | --- |
-| `github` | `GH_TOKEN`, then `GITHUB_TOKEN` | `GH_TOKEN`, `GITHUB_TOKEN`, plus a git credential helper | `api.github.com`, `uploads.github.com`, `github.com`, `codeload.github.com` |
+| `github` | `GITHUB_TOKEN`, then `GH_TOKEN` | `GITHUB_TOKEN`, `GH_TOKEN`, plus a git credential helper | `api.github.com`, `uploads.github.com`, `github.com`, `codeload.github.com` |
 | `npm` | `NPM_TOKEN` | `NPM_TOKEN` | `registry.npmjs.org` |
 
 A builtin is on whenever its token is set in the shell, an `envFile` or an `envSecretFile`, and off with a warning otherwise. For npm, reference the variable from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`, so the current placeholder is read on every run.
@@ -132,7 +132,7 @@ export default defineConfig({
 })
 ```
 
-A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `envSecretFile` is also consulted for `{ env }` sources, after `envFile`.
+A variable is sent only to the hosts bound to it, by a builtin (`GITHUB_TOKEN` and `GH_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `envSecretFile` is also consulted for `{ env }` sources, after `envFile`.
 
 ### Commit identity
 
@@ -336,13 +336,15 @@ The dashboard's **Upgrade** button (`POST /upgrade`) runs `upgrade --force` on d
 
 ## Using it with an orchestrator
 
-Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, run `npx @antfu/dev-container setup` first: it keeps the example's config and creates the env files it reads.
+Orchestrators run inside the cage like any other service, and their agents run as their child processes. See [`examples/`](./examples). In an example's directory, copy `.env.example` to `.env` and `.env.secret.example` to `.env.secret`, then fill in the values. `.env.secret` holds the keys and tokens, which stay on the host.
 
 - [`paseo`](./examples/paseo): the Paseo daemon with Claude Code, Codex and opencode, served on the tailnet.
 - [`paseo-browser`](./examples/paseo-browser): Paseo plus a caged Chromium desktop you sign in to by hand, driven by agents over CDP. It also needs `BROWSER_PASSWORD` in `.env.secret`.
 - [`opencode`](./examples/opencode): `opencode serve` on `127.0.0.1:4096`.
 - [`pi`](./examples/pi): pi with an Anthropic subscription token.
 - [`claude`](./examples/claude): Claude Code as a shell agent, with an egress allowlist.
+- [`amp`](./examples/amp): Amp as a shell agent, with an egress allowlist.
+- [`vercel-ai-gateway`](./examples/vercel-ai-gateway): Claude Code, Codex, opencode and pi through one Vercel AI Gateway key.
 - [`git-signing`](./examples/git-signing): a shell agent whose commits are signed with an SSH key, configured through git's own environment variables.
 
 Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `compose`, `buildStack` and `createDashboardApp`.

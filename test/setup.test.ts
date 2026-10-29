@@ -18,7 +18,7 @@ describe('setup', () => {
       'created .env.secret',
       'added .env, .env.secret, .dev-container/ to .gitignore',
     ])
-    expect(readFileSync(join(root, '.env.secret'), 'utf8')).toBe('# Brokered: the container only ever sees placeholders for these.\nGH_TOKEN=\nNPM_TOKEN=\n')
+    expect(readFileSync(join(root, '.env.secret'), 'utf8')).toBe('# Brokered: the container only ever sees placeholders for these.\nGITHUB_TOKEN=\nNPM_TOKEN=\n')
     expect(statSync(join(root, '.env.secret')).mode & 0o777).toBe(0o600)
 
     const { config } = await loadConfig(root)
@@ -30,7 +30,7 @@ describe('setup', () => {
   it('keeps existing files and values, and only fills gaps', () => {
     const root = mkdtempSync(join(tmpdir(), 'dev-container-setup-'))
     writeFileSync(join(root, 'dev-container.config.mjs'), 'export default {}\n')
-    writeFileSync(join(root, '.env.secret'), 'GH_TOKEN=gho_kept\nOTHER=keep\n')
+    writeFileSync(join(root, '.env.secret'), 'GITHUB_TOKEN=gho_kept\nOTHER=keep\n')
     writeFileSync(join(root, '.gitignore'), 'node_modules\n/.env')
 
     expect(setup({ root }).changes).toEqual([
@@ -39,7 +39,7 @@ describe('setup', () => {
       'added .env.secret, .dev-container/ to .gitignore',
     ])
     expect(readFileSync(join(root, 'dev-container.config.mjs'), 'utf8')).toBe('export default {}\n')
-    expect(readFileSync(join(root, '.env.secret'), 'utf8')).toBe('GH_TOKEN=gho_kept\nOTHER=keep\nNPM_TOKEN=\n')
+    expect(readFileSync(join(root, '.env.secret'), 'utf8')).toBe('GITHUB_TOKEN=gho_kept\nOTHER=keep\nNPM_TOKEN=\n')
     expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n/.env\n.env.secret\n.dev-container/\n')
 
     expect(setup({ root }).changes).toEqual([])

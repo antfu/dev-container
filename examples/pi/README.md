@@ -4,7 +4,8 @@ pi as an interactive shell agent, using an Anthropic subscription token.
 
 ```sh
 claude setup-token > ~/.config/anthropic-setup-token
-npx @antfu/dev-container setup
+cp .env.example .env
+cp .env.secret.example .env.secret # then fill it in
 dev-container up
 dev-container compose exec pi pi
 ```

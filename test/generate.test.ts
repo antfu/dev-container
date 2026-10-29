@@ -54,10 +54,10 @@ describe('generate', () => {
           },
         },
       },
-    }, { GH_TOKEN: 'ghp_real', APP_PASSWORD: 'hunter2' }, root)
+    }, { GITHUB_TOKEN: 'ghp_real', APP_PASSWORD: 'hunter2' }, root)
 
     expect(brokerEnv).toBe(
-      `DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='from-secret'\nDEV_CONTAINER_SECRET_CMD_KEY='from-command'\n`,
+      `DEV_CONTAINER_SECRET_GITHUB_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='from-secret'\nDEV_CONTAINER_SECRET_CMD_KEY='from-command'\n`,
     )
     expect(statSync(join(dir, 'env/broker.env')).mode & 0o777).toBe(0o600)
     expect(readFileSync(join(dir, 'env/agent.env'), 'utf8')).toBe(`PASSWORD='hunter2'\n`)
@@ -65,8 +65,8 @@ describe('generate', () => {
     const compose = readFileSync(composeFile, 'utf8')
     expect(compose).not.toContain('ghp_real')
     expect(compose).not.toContain('hunter2')
-    const placeholder: string = services.agent.environment.GH_TOKEN
-    expect(placeholder).toMatch(/^dc-GH_TOKEN-[0-9a-f]{16}$/)
+    const placeholder: string = services.agent.environment.GITHUB_TOKEN
+    expect(placeholder).toMatch(/^dc-GITHUB_TOKEN-[0-9a-f]{16}$/)
     expect(JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets[0].placeholder).toBe(placeholder)
   })
 
@@ -117,7 +117,7 @@ describe('generate', () => {
     const config = resolveConfig({
       builtins: {
         github: {
-          from: { env: 'GH_TOKEN' },
+          from: { env: 'GITHUB_TOKEN' },
         },
       },
       secrets: [
@@ -131,7 +131,7 @@ describe('generate', () => {
     })
     expect(() => generate({ config, root, env: {} })).toThrow(expect.objectContaining({
       errors: [
-        expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'secret GH_TOKEN: $GH_TOKEN is not set in the environment or any envFile.' }),
+        expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'secret GITHUB_TOKEN: $GITHUB_TOKEN is not set in the environment or any envFile.' }),
         expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'secret ACME_KEY: $ACME_KEY is not set in the environment or any envFile.' }),
         expect.objectContaining({ name: 'DEV_CONTAINER_S2001', message: 'tailscale.authKey: $TS_AUTHKEY is not set in the environment or any envFile.' }),
       ],
@@ -176,10 +176,10 @@ describe('generate', () => {
 describe('builtin secrets', () => {
   it('brokers github and npm when their tokens are set', () => {
     const { services, brokerEnv, warnings } = run({ services: agent }, { GITHUB_TOKEN: 'ghp_real', NPM_TOKEN: 'npm_real' })
-    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_NPM_TOKEN='npm_real'\n`)
+    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GITHUB_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_NPM_TOKEN='npm_real'\n`)
     expect(services.agent.environment).toMatchObject({
-      GH_TOKEN: expect.stringMatching(/^dc-GH_TOKEN-/),
-      GITHUB_TOKEN: services.agent.environment.GH_TOKEN,
+      GITHUB_TOKEN: expect.stringMatching(/^dc-GITHUB_TOKEN-/),
+      GH_TOKEN: services.agent.environment.GITHUB_TOKEN,
       GIT_CONFIG_KEY_0: 'credential.https://github.com.helper',
       NPM_TOKEN: expect.stringMatching(/^dc-NPM_TOKEN-/),
     })
@@ -188,8 +188,8 @@ describe('builtin secrets', () => {
 
   it('reads tokens from envFiles too', () => {
     const root = project()
-    writeFileSync(join(root, '.env.secret'), 'GH_TOKEN=from-file\n')
-    expect(run({ envFile: '.env.secret', services: agent }, {}, root).brokerEnv).toContain(`DEV_CONTAINER_SECRET_GH_TOKEN='from-file'`)
+    writeFileSync(join(root, '.env.secret'), 'GITHUB_TOKEN=from-file\n')
+    expect(run({ envFile: '.env.secret', services: agent }, {}, root).brokerEnv).toContain(`DEV_CONTAINER_SECRET_GITHUB_TOKEN='from-file'`)
   })
 
   it('brokers every envSecretFile variable, binding only the ones a builtin or secret gives hosts', () => {
@@ -220,7 +220,7 @@ describe('builtin secrets', () => {
 
     // The token the builtin did not claim is brokered with no host; sources read as `{ env }` are not.
     expect(brokerEnv).toBe(
-      `DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='acme_real'\nDEV_CONTAINER_SECRET_STRAY_KEY='stray_real'\n`,
+      `DEV_CONTAINER_SECRET_GITHUB_TOKEN='ghp_real'\nDEV_CONTAINER_SECRET_ACME_KEY='acme_real'\nDEV_CONTAINER_SECRET_STRAY_KEY='stray_real'\n`,
     )
     expect(services.agent.environment.STRAY_KEY).toMatch(/^dc-STRAY_KEY-[0-9a-f]{16}$/)
     expect(services.agent.environment.TS_AUTHKEY).toBeUndefined()
@@ -228,7 +228,7 @@ describe('builtin secrets', () => {
     const rules = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES)
     expect(rules.secrets.map((s: { name: string, hosts: string[] }) => [s.name, s.hosts])).toEqual([
       [
-        'GH_TOKEN',
+        'GITHUB_TOKEN',
         expect.arrayContaining(['api.github.com']),
       ],
       [
@@ -265,7 +265,7 @@ describe('builtin secrets', () => {
   })
 
   it('warns and leaves the cage without a placeholder when a token is unset', () => {
-    const { services, warnings } = run({ services: agent }, { GH_TOKEN: 'ghp_real' })
+    const { services, warnings } = run({ services: agent }, { GITHUB_TOKEN: 'ghp_real' })
     expect(services.agent.environment.NPM_TOKEN).toBeUndefined()
     expect(warnings.map(w => w.name)).toEqual(['DEV_CONTAINER_S2002'])
   })
@@ -280,7 +280,7 @@ describe('builtin secrets', () => {
       },
       services: agent,
     }, { NPM_TOKEN: 'npm_real' })
-    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GH_TOKEN='from-command'\n`)
+    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GITHUB_TOKEN='from-command'\n`)
     expect(services.agent.environment.NPM_TOKEN).toBeUndefined()
     expect(warnings).toEqual([])
   })
@@ -295,8 +295,8 @@ describe('builtin secrets', () => {
         },
       },
       services: agent,
-    }, { GH_TOKEN: 'ghp_real', NPM_TOKEN: 'npm_real' })
-    expect(brokerEnv).toContain(`DEV_CONTAINER_SECRET_GH_TOKEN='ghp_real'`)
+    }, { GITHUB_TOKEN: 'ghp_real', NPM_TOKEN: 'npm_real' })
+    expect(brokerEnv).toContain(`DEV_CONTAINER_SECRET_GITHUB_TOKEN='ghp_real'`)
     const [github, npm] = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets
     expect(github.rules).toEqual([
       {
@@ -319,7 +319,7 @@ describe('builtin secrets', () => {
       },
       services: agent,
     }, { NPM_TOKEN: 'npm_real' })
-    expect(services.agent.environment.GH_TOKEN).toBeUndefined()
+    expect(services.agent.environment.GITHUB_TOKEN).toBeUndefined()
     expect(warnings.map(w => w.name)).toEqual(['DEV_CONTAINER_S2002'])
   })
 
@@ -332,7 +332,7 @@ describe('builtin secrets', () => {
         },
       ],
       services: agent,
-    }, { GH_TOKEN: 'ghp_real' })).toThrow(expect.objectContaining({
+    }, { GITHUB_TOKEN: 'ghp_real' })).toThrow(expect.objectContaining({
       name: 'DEV_CONTAINER_C1003',
       fix: 'Remove the custom secret, or turn the builtin off with `builtins: { github: false }`.',
     }))

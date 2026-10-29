@@ -7,7 +7,7 @@ import { defineConfig } from '@antfu/dev-container'
  */
 export default defineConfig({
   tailscale: { hostname: 'paseo' },
-  // GH_TOKEN is brokered as usual; agents can still use it for anything but deleting a repo.
+  // GITHUB_TOKEN is brokered as usual; agents can still use it for anything but deleting a repo.
   builtins: {
     github: {
       rules: [

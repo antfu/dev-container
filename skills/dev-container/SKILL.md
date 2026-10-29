@@ -8,7 +8,7 @@ description: Configure, run and repair dev-container stacks, which are network-c
 `dev-container` turns `dev-container.config.ts` into a Docker Compose stack:
 
 - **Caged services** run on a network with no route out except the **broker**, a mitmproxy sidecar.
-- **Brokered secrets** (`GH_TOKEN`, `NPM_TOKEN`, and the entries in `secrets`) appear inside the cage only as placeholders like `dc-GH_TOKEN-3f9c…`. The broker swaps in the real value on the way out, and only toward that secret's bound hosts.
+- **Brokered secrets** (`GITHUB_TOKEN`, `NPM_TOKEN`, and the entries in `secrets`) appear inside the cage only as placeholders like `dc-GITHUB_TOKEN-3f9c…`. The broker swaps in the real value on the way out, and only toward that secret's bound hosts.
 
 ## First: host or cage?
 
@@ -19,7 +19,7 @@ You are **inside the cage** if `HTTPS_PROXY` is `http://broker:8080`.
 
 ## On the host: the repair loop
 
-1. If there is no config, run `npx @antfu/dev-container setup`. It writes the config, `.env` and `.env.secret` (with empty `GH_TOKEN` and `NPM_TOKEN`), and adds `.gitignore` entries. It never overwrites existing values.
+1. If there is no config, run `npx @antfu/dev-container setup`. It writes the config, `.env` and `.env.secret` (with empty `GITHUB_TOKEN` and `NPM_TOKEN`), and adds `.gitignore` entries. It never overwrites existing values.
 2. Run `npx @antfu/dev-container generate --json`. Diagnostics go to stderr as one JSON object per line: `{ level, name, why, fix, docs, sources?, data? }`. Agents get JSON automatically.
 3. For each `level: "error"`, apply its `fix`. The `docs` link explains the code. `data.path` on `DEV_CONTAINER_C1002` names the config field. Config and secret errors are all listed in one run, so fix every one before re-running.
 4. Re-run step 2 until there are no errors. Warnings such as `DEV_CONTAINER_S2002` (a builtin token is unset) are fine to leave.

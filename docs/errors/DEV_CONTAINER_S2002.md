@@ -1,6 +1,6 @@
 # DEV_CONTAINER_S2002: Builtin secret is off
 
-This is a warning, not an error. The `github` or `npm` builtin is detected automatically from `GH_TOKEN`/`GITHUB_TOKEN` or `NPM_TOKEN`, and none of them is set, so the builtin is skipped and the container gets no placeholder for it.
+This is a warning, not an error. The `github` or `npm` builtin is detected automatically from `GITHUB_TOKEN`/`GH_TOKEN` or `NPM_TOKEN`, and none of them is set, so the builtin is skipped and the container gets no placeholder for it.
 
 ## Fix
 

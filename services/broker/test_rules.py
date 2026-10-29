@@ -3,7 +3,7 @@ import unittest
 
 from rules import Rules, allowed, decide, host_matches, path_matches, request_path
 
-GH = "dc-GH_TOKEN-0123456789abcdef"
+GH = "dc-GITHUB_TOKEN-0123456789abcdef"
 ACME = "dc-ACME_KEY-fedcba9876543210"
 
 
@@ -13,11 +13,11 @@ def rules(policy="open", allow=()):
             "policy": policy,
             "allow": list(allow),
             "secrets": [
-                {"name": "GH_TOKEN", "placeholder": GH, "hosts": ["api.github.com", "github.com"]},
+                {"name": "GITHUB_TOKEN", "placeholder": GH, "hosts": ["api.github.com", "github.com"]},
                 {"name": "ACME_KEY", "placeholder": ACME, "hosts": ["*.acme.dev:8443"]},
             ],
         },
-        {"DEV_CONTAINER_SECRET_GH_TOKEN": "ghp_real", "DEV_CONTAINER_SECRET_ACME_KEY": "acme_real"},
+        {"DEV_CONTAINER_SECRET_GITHUB_TOKEN": "ghp_real", "DEV_CONTAINER_SECRET_ACME_KEY": "acme_real"},
     )
 
 
@@ -47,7 +47,7 @@ class Injection(unittest.TestCase):
         d = request("api.github.com", [("Authorization", "Bearer " + GH), ("Accept", "*/*")])
         self.assertIsNone(d.blocked)
         self.assertEqual(d.headers, [("Authorization", "Bearer ghp_real"), ("Accept", "*/*")])
-        self.assertEqual(d.injected, ["GH_TOKEN"])
+        self.assertEqual(d.injected, ["GITHUB_TOKEN"])
 
     def test_swaps_inside_basic_auth(self):
         d = request("github.com", [("Authorization", basic("x-access-token", GH))])
@@ -63,7 +63,7 @@ class Injection(unittest.TestCase):
 
     def test_host_is_case_and_dot_insensitive(self):
         d = request("API.GitHub.com.", [("Authorization", "Bearer " + GH)])
-        self.assertEqual(d.injected, ["GH_TOKEN"])
+        self.assertEqual(d.injected, ["GITHUB_TOKEN"])
 
 
 class Blocking(unittest.TestCase):
@@ -88,7 +88,7 @@ class Blocking(unittest.TestCase):
         self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5002")
 
     def test_unknown_placeholder(self):
-        d = request("api.github.com", [("Authorization", "Bearer dc-GH_TOKEN-aaaaaaaaaaaaaaaa")])
+        d = request("api.github.com", [("Authorization", "Bearer dc-GITHUB_TOKEN-aaaaaaaaaaaaaaaa")])
         self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5003")
 
     def test_missing_value(self):
@@ -122,8 +122,8 @@ class PathMatching(unittest.TestCase):
 
 def ruled(rules_, method, url, headers=None):
     r = Rules.from_json(
-        {"policy": "open", "allow": [], "secrets": [{"name": "GH_TOKEN", "placeholder": GH, "hosts": ["api.github.com"], "rules": rules_}]},
-        {"DEV_CONTAINER_SECRET_GH_TOKEN": "ghp_real"},
+        {"policy": "open", "allow": [], "secrets": [{"name": "GITHUB_TOKEN", "placeholder": GH, "hosts": ["api.github.com"], "rules": rules_}]},
+        {"DEV_CONTAINER_SECRET_GITHUB_TOKEN": "ghp_real"},
     )
     return decide(r, "https", "api.github.com", 443, method, url, [("Authorization", "Bearer " + GH)] if headers is None else headers)
 
@@ -136,8 +136,8 @@ class RequestRules(unittest.TestCase):
     ]
 
     def test_first_match_wins(self):
-        self.assertEqual(ruled(self.ONLY_ONE_REPO, "GET", "https://api.github.com/repos/antfu/other").injected, ["GH_TOKEN"])
-        self.assertEqual(ruled(self.ONLY_ONE_REPO, "POST", "https://api.github.com/repos/antfu/dev-container/issues").injected, ["GH_TOKEN"])
+        self.assertEqual(ruled(self.ONLY_ONE_REPO, "GET", "https://api.github.com/repos/antfu/other").injected, ["GITHUB_TOKEN"])
+        self.assertEqual(ruled(self.ONLY_ONE_REPO, "POST", "https://api.github.com/repos/antfu/dev-container/issues").injected, ["GITHUB_TOKEN"])
         d = ruled(self.ONLY_ONE_REPO, "post", "https://api.github.com/repos/antfu/other/issues")
         self.assertEqual(d.blocked.code, "DEV_CONTAINER_B5007")
         self.assertIn("rule `deny * /**`", d.blocked.why)
@@ -162,8 +162,8 @@ class Rendering(unittest.TestCase):
         self.assertEqual(
             d.blocked.render().splitlines(),
             [
-                "[DEV_CONTAINER_B5004] GH_TOKEN is not bound to evil.example, so the broker will not send it there.",
-                "\u251c\u25b6 fix: Send GH_TOKEN only to api.github.com, github.com. If evil.example truly needs it, ask for the host to be added to that secret's `hosts`. This is configured on the host in dev-container.config.ts; it cannot be changed from inside the container.",
+                "[DEV_CONTAINER_B5004] GITHUB_TOKEN is not bound to evil.example, so the broker will not send it there.",
+                "\u251c\u25b6 fix: Send GITHUB_TOKEN only to api.github.com, github.com. If evil.example truly needs it, ask for the host to be added to that secret's `hosts`. This is configured on the host in dev-container.config.ts; it cannot be changed from inside the container.",
                 "\u2570\u25b6 see: https://github.com/antfu/dev-container/blob/main/docs/errors/DEV_CONTAINER_B5004.md",
             ],
         )

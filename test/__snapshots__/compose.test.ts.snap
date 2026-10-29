@@ -13,7 +13,7 @@ services:
       - path: /work/my-project/.dev-container/env/broker.env
         required: true
     environment:
-      DEV_CONTAINER_RULES: '{"policy":"allowlist","allow":["registry.npmjs.org","host.docker.internal:7357"],"secrets":[{"name":"GH_TOKEN","placeholder":"dc-GH_TOKEN-0000000000000000","hosts":["api.github.com","uploads.github.com","github.com","codeload.github.com"],"rules":[]},{"name":"ACME_KEY","placeholder":"dc-ACME_KEY-1111111111111111","hosts":["*.acme.dev"],"rules":[]}]}'
+      DEV_CONTAINER_RULES: '{"policy":"allowlist","allow":["registry.npmjs.org","host.docker.internal:7357"],"secrets":[{"name":"GITHUB_TOKEN","placeholder":"dc-GITHUB_TOKEN-0000000000000000","hosts":["api.github.com","uploads.github.com","github.com","codeload.github.com"],"rules":[]},{"name":"ACME_KEY","placeholder":"dc-ACME_KEY-1111111111111111","hosts":["*.acme.dev"],"rules":[]}]}'
     volumes:
       - broker-ca:/home/mitmproxy/.mitmproxy
       - ca:/etc/dev-container/ca
@@ -50,12 +50,12 @@ services:
       REQUESTS_CA_BUNDLE: /etc/dev-container/ca/mitmproxy-ca-cert.pem
       CURL_CA_BUNDLE: /etc/dev-container/ca/mitmproxy-ca-cert.pem
       GIT_SSL_CAINFO: /etc/dev-container/ca/mitmproxy-ca-cert.pem
-      GH_TOKEN: dc-GH_TOKEN-0000000000000000
-      GITHUB_TOKEN: dc-GH_TOKEN-0000000000000000
+      GITHUB_TOKEN: dc-GITHUB_TOKEN-0000000000000000
+      GH_TOKEN: dc-GITHUB_TOKEN-0000000000000000
       ACME_KEY: dc-ACME_KEY-1111111111111111
       GIT_CONFIG_COUNT: "1"
       GIT_CONFIG_KEY_0: credential.https://github.com.helper
-      GIT_CONFIG_VALUE_0: "!f() { test \\"$$1\\" = get && printf 'username=x-access-token\\\\npassword=%s\\\\n' \\"$$GH_TOKEN\\"; }; f"
+      GIT_CONFIG_VALUE_0: "!f() { test \\"$$1\\" = get && printf 'username=x-access-token\\\\npassword=%s\\\\n' \\"$$GITHUB_TOKEN\\"; }; f"
       DEV_CONTAINER_DASHBOARD_URL: http://host.docker.internal:7357
       DEV_CONTAINER_DASHBOARD_TOKEN: dashboard-token
       FOO: bar

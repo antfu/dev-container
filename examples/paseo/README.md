@@ -3,7 +3,8 @@
 The Paseo daemon with Claude Code, Codex and opencode, served on your tailnet. Every agent runs inside this one caged container.
 
 ```sh
-npx @antfu/dev-container setup
+cp .env.example .env
+cp .env.secret.example .env.secret # then fill it in
 dev-container up
 ```
 

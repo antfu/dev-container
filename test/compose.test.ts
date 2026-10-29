@@ -8,7 +8,7 @@ const ctx = {
   root: '/work/my-project',
   dir: '/work/my-project/.dev-container',
   assets: '/pkg',
-  placeholders: { GH_TOKEN: 'dc-GH_TOKEN-0000000000000000', ACME_KEY: 'dc-ACME_KEY-1111111111111111' },
+  placeholders: { GITHUB_TOKEN: 'dc-GITHUB_TOKEN-0000000000000000', ACME_KEY: 'dc-ACME_KEY-1111111111111111' },
   dashboardToken: 'dashboard-token',
 }
 
@@ -66,8 +66,8 @@ describe('buildStack', () => {
               "github.com",
               "codeload.github.com",
             ],
-            "name": "GH_TOKEN",
-            "placeholder": "dc-GH_TOKEN-0000000000000000",
+            "name": "GITHUB_TOKEN",
+            "placeholder": "dc-GITHUB_TOKEN-0000000000000000",
             "rules": [],
           },
           {
@@ -351,8 +351,8 @@ describe('buildStack', () => {
       },
     })
     const environment = compose.services.agent!.environment!
-    expect(environment.GH_TOKEN).toBe(ctx.placeholders.GH_TOKEN)
-    expect(environment.GITHUB_TOKEN).toBe(ctx.placeholders.GH_TOKEN)
+    expect(environment.GITHUB_TOKEN).toBe(ctx.placeholders.GITHUB_TOKEN)
+    expect(environment.GH_TOKEN).toBe(ctx.placeholders.GITHUB_TOKEN)
     expect(compose.services.broker!.env_file).toEqual([
       { path: '/work/my-project/.dev-container/env/broker.env', required: true },
     ])

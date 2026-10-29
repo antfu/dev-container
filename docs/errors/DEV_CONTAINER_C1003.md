@@ -1,6 +1,6 @@
 # DEV_CONTAINER_C1003: Two secrets claim the same variable
 
-Two brokered secrets, or a secret and a builtin (`github` claims `GH_TOKEN` and `GITHUB_TOKEN`, `npm` claims `NPM_TOKEN`), would put different placeholders into the same environment variable.
+Two brokered secrets, or a secret and a builtin (`github` claims `GITHUB_TOKEN` and `GH_TOKEN`, `npm` claims `NPM_TOKEN`), would put different placeholders into the same environment variable.
 
 ## Fix
 
@@ -11,7 +11,7 @@ export default defineConfig({
   builtins: { github: false },
   secrets: [
     {
-      env: 'GH_TOKEN',
+      env: 'GITHUB_TOKEN',
       hosts: ['github.example.com']
     }
   ],

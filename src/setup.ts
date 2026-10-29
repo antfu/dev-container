@@ -43,7 +43,7 @@ function fillSecrets(file: string, changes: string[]): void {
   const before = existed
     ? readFileSync(file, 'utf8')
     : '# Brokered: the container only ever sees placeholders for these.\n'
-  const secrets = ensureKey(ensureKey(before, 'GH_TOKEN'), 'NPM_TOKEN')
+  const secrets = ensureKey(ensureKey(before, 'GITHUB_TOKEN'), 'NPM_TOKEN')
   if (!existed || secrets !== before) {
     writeFileSync(file, secrets, { mode: 0o600 })
     changes.push(`${existed ? 'updated' : 'created'} .env.secret`)
@@ -77,7 +77,7 @@ function starterConfig(image: string, ports: string[]): string {
     : `'${port}'`).join(', ')
   return `import type { UserConfig } from '@antfu/dev-container'
 
-// GH_TOKEN and NPM_TOKEN from .env.secret are brokered: the container only sees placeholders.
+// GITHUB_TOKEN and NPM_TOKEN from .env.secret are brokered: the container only sees placeholders.
 // Reference: https://github.com/antfu/dev-container#config
 // Examples (Paseo, opencode, pi, Claude Code): https://github.com/antfu/dev-container/tree/main/examples
 export default {

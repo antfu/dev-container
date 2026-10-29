@@ -13,8 +13,8 @@ export type BuiltinName = typeof BUILTIN_NAMES[number]
 export const BUILTINS: Record<BuiltinName, Builtin> = {
   github: {
     secret: {
-      env: 'GH_TOKEN',
-      aliases: ['GITHUB_TOKEN'],
+      env: 'GITHUB_TOKEN',
+      aliases: ['GH_TOKEN'],
       hosts: [
         'api.github.com',
         'uploads.github.com',
@@ -24,7 +24,7 @@ export const BUILTINS: Record<BuiltinName, Builtin> = {
       git: { host: 'github.com', username: 'x-access-token' },
       rules: [],
     },
-    detect: ['GH_TOKEN', 'GITHUB_TOKEN'],
+    detect: ['GITHUB_TOKEN', 'GH_TOKEN'],
   },
   // Reference it from `.npmrc` as `//registry.npmjs.org/:_authToken=${NPM_TOKEN}`.
   npm: {

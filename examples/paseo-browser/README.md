@@ -3,7 +3,8 @@
 [`paseo`](../paseo) plus a caged Chromium desktop that you sign in to by hand. Agents drive that browser over CDP. Chromium serves CDP on its own localhost only, so Paseo joins the browser's network namespace.
 
 ```sh
-npx @antfu/dev-container setup
+cp .env.example .env
+cp .env.secret.example .env.secret # then fill it in
 dev-container up
 ```
 

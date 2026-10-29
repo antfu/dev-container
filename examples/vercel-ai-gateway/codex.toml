@@ -1,0 +1,9 @@
+# Send Codex through Vercel AI Gateway. The key comes from AI_GATEWAY_API_KEY, which holds a placeholder in the cage.
+model_provider = "vercel"
+model = "openai/gpt-5"
+
+[model_providers.vercel]
+name = "Vercel AI Gateway"
+base_url = "https://ai-gateway.vercel.sh/v1"
+env_key = "AI_GATEWAY_API_KEY"
+wire_api = "responses"
