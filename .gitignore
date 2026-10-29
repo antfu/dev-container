@@ -13,3 +13,4 @@ temp
 .eslintcache
 .agents/skills
 __pycache__
+examples/git-signing/signing

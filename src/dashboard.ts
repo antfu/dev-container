@@ -1,7 +1,6 @@
 import type { ServerType } from '@hono/node-server'
 import type { SSEStreamingApi } from 'hono/streaming'
 import type { TailscaleLink } from './compose'
-import type { GitTarget } from './git'
 import { Buffer } from 'node:buffer'
 import { execFile, spawn } from 'node:child_process'
 import { timingSafeEqual } from 'node:crypto'
@@ -15,7 +14,6 @@ import { streamSSE } from 'hono/streaming'
 import { Diagnostic } from 'nostics'
 import { diagnostics } from './diagnostics'
 import { composeArgs, dockerFailure } from './docker'
-import { disableSigning, enableSigning, publicKey, signingStatus } from './git'
 
 const run = promisify(execFile)
 
@@ -53,17 +51,6 @@ const Service = z.object({
   health: z.string().openapi({ description: 'Empty when the service has no healthcheck', example: 'healthy' }),
   status: z.string().openapi({ example: 'Up 2 minutes' }),
 }).openapi('Service')
-
-const ContainerUser = z.string().regex(/^[\w.-]+$/).optional().openapi({ description: 'Container user that owns the keyring; defaults to the image user', example: 'node' })
-
-const GpgStatus = z.object({
-  installed: z.boolean(),
-  signing: z.boolean(),
-  keys: z.array(z.object({
-    fingerprint: z.string(),
-    uid: z.string(),
-  })),
-}).openapi('GpgStatus')
 
 const Stats = z.object({
   service: z.string(),
@@ -242,92 +229,6 @@ const routes = {
       ...errors,
     },
   }),
-  gpgStatus: createRoute({
-    method: 'get',
-    path: '/services/{name}/gpg',
-    summary: 'Whether commit signing is on in a service, and which secret keys it holds',
-    request: {
-      params: z.object({ name: ServiceName }),
-      query: z.object({ user: ContainerUser }),
-    },
-    responses: {
-      200: {
-        description: 'Signing status',
-        content: {
-          'application/json': { schema: GpgStatus },
-        },
-      },
-      ...errors,
-    },
-  }),
-  gpgPublic: createRoute({
-    method: 'get',
-    path: '/services/{name}/gpg/public',
-    summary: 'The armored public key of the signing key, to add to GitHub',
-    request: {
-      params: z.object({ name: ServiceName }),
-      query: z.object({ user: ContainerUser }),
-    },
-    responses: {
-      200: {
-        description: 'The key; empty when none is set up',
-        content: {
-          'application/json': {
-            schema: z.object({
-              publicKey: z.string(),
-            }),
-          },
-        },
-      },
-      ...errors,
-    },
-  }),
-  gpgEnable: createRoute({
-    method: 'post',
-    path: '/services/{name}/gpg',
-    summary: 'Import a private key into a service and turn on commit signing',
-    request: {
-      params: z.object({ name: ServiceName }),
-      body: {
-        content: {
-          'application/json': {
-            schema: z.object({
-              privateKey: z.string().min(1),
-              publicKey: z.string().optional(),
-              user: ContainerUser,
-            }),
-          },
-        },
-      },
-    },
-    responses: {
-      200: {
-        description: 'Signing is on',
-        content: {
-          'application/json': {
-            schema: z.object({
-              ok: z.literal(true),
-              fingerprint: z.string(),
-            }),
-          },
-        },
-      },
-      ...errors,
-    },
-  }),
-  gpgDisable: createRoute({
-    method: 'delete',
-    path: '/services/{name}/gpg',
-    summary: 'Turn commit signing off in a service; the key stays in its keyring',
-    request: {
-      params: z.object({ name: ServiceName }),
-      query: z.object({ user: ContainerUser }),
-    },
-    responses: {
-      200: { description: 'Signing is off', content: ok },
-      ...errors,
-    },
-  }),
   restart: createRoute({
     method: 'post',
     path: '/services/{name}/restart',
@@ -502,21 +403,6 @@ export function createDashboardApp({ dir, token, docker = 'docker', upgrade, lin
   })
   app.openapi(routes.update, async (c) => {
     await update(c.req.valid('param').name)
-    return c.json({ ok: true as const }, 200)
-  })
-
-  const target = (service: string, user?: string): GitTarget => ({ dir, service, user, docker })
-  app.openapi(routes.gpgStatus, async c => c.json(await signingStatus(target(c.req.valid('param').name, c.req.valid('query').user)), 200))
-  app.openapi(routes.gpgPublic, async c => c.json({ publicKey: await publicKey(target(c.req.valid('param').name, c.req.valid('query').user)) }, 200))
-  app.openapi(routes.gpgEnable, async (c) => {
-    const { privateKey, publicKey, user } = c.req.valid('json')
-    const fingerprint = await enableSigning(target(c.req.valid('param').name, user), ...publicKey
-      ? [privateKey, publicKey]
-      : [privateKey])
-    return c.json({ ok: true as const, fingerprint }, 200)
-  })
-  app.openapi(routes.gpgDisable, async (c) => {
-    await disableSigning(target(c.req.valid('param').name, c.req.valid('query').user))
     return c.json({ ok: true as const }, 200)
   })
 

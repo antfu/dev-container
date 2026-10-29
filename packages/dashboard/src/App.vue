@@ -14,7 +14,6 @@ const stats = ref<Record<string, Stats>>({})
 const links = ref<Link[]>([])
 const selected = ref('')
 const error = ref('')
-const notice = ref('')
 const busy = ref('')
 const detail = useTemplateRef<InstanceType<typeof ServiceDetail>>('detail')
 let linksLoaded = false
@@ -47,7 +46,6 @@ async function refresh(): Promise<void> {
 
 async function act(label: string, path: string): Promise<void> {
   busy.value = `${label}…`
-  notice.value = ''
   try {
     await api(path, { method: 'POST' })
     error.value = ''
@@ -96,10 +94,7 @@ onBeforeUnmount(() => clearInterval(timer))
     <p v-if="error" class="m-0 px-3 py-2 rounded border border-bad text-sm text-bad">
       {{ error }}
     </p>
-    <p v-if="notice" class="m-0 px-3 py-2 rounded border border-accent text-sm text-accent">
-      {{ notice }}
-    </p>
     <ServiceTable :services="services" :stats="stats" :selected="selected" :busy="!!busy" @select="selected = $event" @act="act" />
-    <ServiceDetail v-if="selected" ref="detail" :key="selected" :name="selected" @notice="notice = $event" @error="error = $event" />
+    <ServiceDetail v-if="selected" ref="detail" :key="selected" :name="selected" />
   </main>
 </template>

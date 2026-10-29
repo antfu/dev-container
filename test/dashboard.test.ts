@@ -170,34 +170,6 @@ describe('dashboard API', () => {
     ])
   })
 
-  it('manages commit signing inside a service', async () => {
-    const get = async (path: string, init: RequestInit = {}) => (await app().request(path, {
-      ...auth,
-      ...init,
-    })).json()
-    expect(await get('/services/agent/gpg?user=node')).toEqual({
-      installed: true,
-      signing: true,
-      keys: [
-        { fingerprint: 'FPR1234', uid: 'Ada <ada@example.com>' },
-      ],
-    })
-    expect(await get('/services/agent/gpg/public')).toEqual({ publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nabc\n-----END PGP PUBLIC KEY BLOCK-----' })
-    const enabled = await app().request('/services/agent/gpg', {
-      method: 'POST',
-      headers: { ...auth.headers, 'content-type': 'application/json' },
-      body: JSON.stringify({ privateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----', user: 'node' }),
-    })
-    expect(await enabled.json()).toEqual({ ok: true, fingerprint: 'FPR1234' })
-    expect(await get('/services/agent/gpg', { method: 'DELETE' })).toEqual({ ok: true })
-    expect(invocations().filter(line => line.startsWith('compose')).map(line => line.split(' sh -c ')[0].replace('compose -f /stack/.dev-container/compose.yml ', ''))).toEqual([
-      'exec -T -u node agent',
-      'exec -T agent',
-      'exec -T -u node agent',
-      'exec -T agent',
-    ])
-  })
-
   it('restarts one service or the whole stack', async () => {
     expect(await (await app().request('/services/agent/restart', { method: 'POST', ...auth })).json()).toEqual({ ok: true })
     expect(await (await app().request('/restart', { method: 'POST', ...auth })).json()).toEqual({ ok: true })
@@ -257,8 +229,6 @@ describe('dashboard API', () => {
       '/update',
       '/upgrade',
       '/services/{name}/update',
-      '/services/{name}/gpg',
-      '/services/{name}/gpg/public',
     ])
     expect(doc.components.securitySchemes).toEqual({
       bearer: { type: 'http', scheme: 'bearer' },

@@ -127,7 +127,7 @@ const Service = z.strictObject({
   compose: z.record(z.string(), z.json()).optional(),
   /** Serve this service's `tailnet` ports from its own node instead of the top-level one. */
   tailscale: Tailscale.optional(),
-  /** Commit identity for the git inside the container; signing is the `gpg` builtin. */
+  /** Commit identity for the git inside the container. */
   git: z.strictObject({
     name: z.string().min(1).optional(),
     email: z.string().min(1).optional(),
@@ -139,22 +139,6 @@ const Builtin = z.union([
   z.strictObject({
     from: SecretSource.optional(),
     rules: RequestRules,
-  }),
-])
-
-/** Not a brokered secret: the key is piped into `gpg --import` inside each running service after `up`, never stored in its environment. */
-const Gpg = z.union([
-  z.literal('auto'),
-  z.literal(false),
-  z.strictObject({
-    /** An armored key, or base64 of one, without a passphrase. Defaults to `GPG_PRIVATE_KEY`; unset means off. */
-    privateKey: SecretSource.optional(),
-    /** The matching public key, imported too. Defaults to `GPG_PUBLIC_KEY`. */
-    publicKey: SecretSource.optional(),
-    /** The container user that owns the keyring and git config. Defaults to the image's user. */
-    user: z.string().optional(),
-    /** Only these services; by default every service that has gpg installed. */
-    services: z.array(z.string()).optional(),
   }),
 ])
 
@@ -199,8 +183,6 @@ const Config = z.strictObject({
       github: Builtin.optional(),
       npm: Builtin.optional(),
     } satisfies Record<BuiltinName, z.ZodType>,
-    /** Signs commits inside the services: `'auto'` imports `GPG_PRIVATE_KEY` (and `GPG_PUBLIC_KEY`) when set. Off by default. */
-    gpg: Gpg.optional(),
   }).default({}),
   secrets: z.array(Secret).default([]),
   /** How a stack kept in a git checkout on an always-on host pulls, rebuilds and restarts itself: `dev-container upgrade`, the daemon, or the dashboard's Upgrade button. */

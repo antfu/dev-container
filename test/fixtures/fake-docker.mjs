@@ -64,16 +64,6 @@ else if (command === 'logs' && rest.includes('--follow')) {
 else if (command === 'logs') {
   print('first\nsecond')
 }
-else if (command === 'exec') {
-  // The script is the last argument; the key it would import arrives on stdin.
-  const script = rest.at(-1)
-  if (script.includes('--import'))
-    print('FPR1234')
-  else if (script.includes('installed:'))
-    print('installed:1\nsec:u:255:22:KEYID:1:::::::::\nfpr:::::::::FPR1234:\nuid:u::::1::HASH::Ada <ada@example.com>::::::::::0:\nsigning:true')
-  else if (script.includes('--export'))
-    print('-----BEGIN PGP PUBLIC KEY BLOCK-----\nabc\n-----END PGP PUBLIC KEY BLOCK-----')
-}
 else if (command === 'restart' && rest[0] === 'missing') {
   console.error('no such service: missing')
   process.exit(1)

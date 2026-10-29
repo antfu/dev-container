@@ -134,14 +134,12 @@ export default defineConfig({
 
 A variable is sent only to the hosts bound to it, by a builtin (`GH_TOKEN` and `GITHUB_TOKEN`, `NPM_TOKEN`) or by a `secrets` entry with the same `env`. A variable with no hosts is never sent anywhere: its placeholder is useless in the cage, and a request that carries it is blocked. Add a `secrets` entry to bind it. Variables that an `{ env }` source reads itself, such as the Tailscale auth key, are not brokered. `envSecretFile` is also consulted for `{ env }` sources, after `envFile`.
 
-### Commit identity and signing
+### Commit identity
 
-A service's `git: { name, email }` sets `GIT_AUTHOR_*` and `GIT_COMMITTER_*`. For signing, turn on the `gpg` builtin:
+A service's `git: { name, email }` sets `GIT_AUTHOR_*` and `GIT_COMMITTER_*`:
 
 ```ts
 export default defineConfig({
-  // 'auto' reads GPG_PRIVATE_KEY (and GPG_PUBLIC_KEY) from the env files, and is off when it is unset.
-  builtins: { gpg: 'auto' },
   services: {
     agent: {
       build: '.',
@@ -151,7 +149,7 @@ export default defineConfig({
 })
 ```
 
-After every `up`, the key is piped into `gpg --import` inside each running service that has `gpg`, and `user.signingkey`, `commit.gpgsign` and `tag.gpgsign` are set for the container user. The key never goes into the environment or the compose file, but it does end up in that user's keyring, so use a dedicated key without a passphrase. Use an object to override the sources, name the container `user`, or limit `services`. Add the public key to GitHub from the dashboard's **Copy public key** button. A failure is reported as [`DEV_CONTAINER_D4005`](./docs/errors/DEV_CONTAINER_D4005.md) and does not stop the stack.
+To sign commits, configure git yourself. [`git-signing`](./examples/git-signing) shows SSH signing with a dedicated key.
 
 ### Request rules
 
@@ -287,7 +285,7 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 
 ## Dashboard API
 
-`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small dashboard page at `/`. It binds to `127.0.0.1:7357` by default (`dashboard.host` and `dashboard.port` in config), and every API request needs the bearer token from `.dev-container/dashboard-token`. To choose the token yourself, set `DEV_CONTAINER_DASHBOARD_TOKEN` on the host or `dashboard.token` in the config. The env var wins over the config, and either one wins over the file, which is then not created. Prefer the env var when the config is committed. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, restarts or updates a service, and manages commit signing.
+`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small dashboard page at `/`. It binds to `127.0.0.1:7357` by default (`dashboard.host` and `dashboard.port` in config), and every API request needs the bearer token from `.dev-container/dashboard-token`. To choose the token yourself, set `DEV_CONTAINER_DASHBOARD_TOKEN` on the host or `dashboard.token` in the config. The env var wins over the config, and either one wins over the file, which is then not created. Prefer the env var when the config is committed. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, and restarts or updates a service.
 
 | Endpoint | |
 | --- | --- |
@@ -297,10 +295,6 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 | `POST /services/{name}/restart` | restart one service |
 | `POST /restart` | restart the stack |
 | `POST /services/{name}/update`, `POST /update` | pull base images, rebuild and recreate |
-| `GET /services/{name}/gpg` | whether signing is on, and the secret keys in the service (`?user=` picks the container user) |
-| `GET /services/{name}/gpg/public` | the armored public key, to add to GitHub; the dashboard has a copy button |
-| `POST /services/{name}/gpg` | import `{ privateKey, publicKey?, user? }` and turn signing on |
-| `DELETE /services/{name}/gpg` | turn signing off; the key stays in the keyring |
 | `GET /openapi.json` | the OpenAPI 3.1 document |
 
 A service with `dashboard: true` receives `DEV_CONTAINER_DASHBOARD_URL` and `DEV_CONTAINER_DASHBOARD_TOKEN` and reaches the server through the broker via `host.docker.internal`. On Linux, the host gateway is not loopback, so start the server with `serve --host 0.0.0.0` or with the docker bridge address.
@@ -349,6 +343,7 @@ Orchestrators run inside the cage like any other service, and their agents run a
 - [`opencode`](./examples/opencode): `opencode serve` on `127.0.0.1:4096`.
 - [`pi`](./examples/pi): pi with an Anthropic subscription token.
 - [`claude`](./examples/claude): Claude Code as a shell agent, with an egress allowlist.
+- [`git-signing`](./examples/git-signing): a shell agent whose commits are signed with an SSH key, configured through git's own environment variables.
 
 Programmatic use goes through `loadConfig`, `resolveConfig`, `generate`, `up`, `compose`, `buildStack` and `createDashboardApp`.
 

@@ -37,18 +37,6 @@ function readEnvFiles(root: string, files: string[] | undefined, fallback: strin
   return Object.assign({}, ...list.map(file => readEnvFile(resolve(root, file))))
 }
 
-/** Where `{ env }` sources are looked up: the host environment, then the env files. */
-export function createLookup({ config, root, env = process.env }: GenerateOptions): SecretLookup {
-  return {
-    root,
-    env,
-    envFile: {
-      ...readEnvFiles(root, config.envFile, '.env'),
-      ...readEnvFiles(root, config.envSecretFile, '.env.secret'),
-    },
-  }
-}
-
 /**
  * Writes `.dev-container/`: the compose file and env files with
  * resolved secrets. Placeholders are regenerated on every run.
@@ -158,17 +146,6 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
   ]
 }
 
-/** The `gpg` builtin's key sources; an unset default one is simply off. */
-export function gpgSources(config: ResolvedConfig): { privateKey: SecretSourceConfig, publicKey: SecretSourceConfig } | undefined {
-  const setting = config.builtins.gpg
-  if (!setting)
-    return undefined
-  const given = setting === 'auto'
-    ? {}
-    : setting
-  return { privateKey: given.privateKey ?? { env: 'GPG_PRIVATE_KEY' }, publicKey: given.publicKey ?? { env: 'GPG_PUBLIC_KEY' } }
-}
-
 /** Variables that some `{ env }` source reads itself, so they must not also become placeholders. */
 function envsRead(config: ResolvedConfig): Set<string> {
   const sources: SecretSourceConfig[] = [
@@ -182,7 +159,6 @@ function envsRead(config: ResolvedConfig): Set<string> {
         ? [builtin.from]
         : []
     }),
-    ...Object.values(gpgSources(config) ?? {}),
     ...Object.values(config.services).flatMap(service => Object.values(service.env).filter(value => typeof value !== 'string')),
   ]
   return new Set(sources.flatMap(source => 'env' in source

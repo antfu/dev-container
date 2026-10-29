@@ -1,3 +1,4 @@
+# The Paseo daemon image; it already runs the daemon and has Node.
 FROM ghcr.io/getpaseo/paseo:latest
 # Stay root: the base entrypoint drops the daemon and its agents to the `paseo` user.
 USER root
@@ -8,4 +9,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
   && apt-get update && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
+# The agents Paseo can drive: Claude Code, Codex and opencode.
 RUN npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai
