@@ -15,7 +15,7 @@ defineProps<{ offline: boolean }>()
           For upgrades and a server that starts at login and keeps running, install the daemon with <code class="font-mono text-fg">dev-container daemon install</code>.
         </template>
         <template v-else>
-          Upgrade and scheduled self-upgrades are off. Install the daemon with <code class="font-mono text-fg">dev-container daemon install</code> for the full feature set.
+          Upgrades are off. Install the daemon with <code class="font-mono text-fg">dev-container daemon install</code> for the full feature set.
         </template>
       </p>
     </div>

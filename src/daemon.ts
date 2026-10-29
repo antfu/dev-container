@@ -9,7 +9,7 @@ import process from 'node:process'
 import { tailscaleLinks } from './compose'
 import { serveDashboard } from './dashboard'
 import { readDashboardToken } from './generate'
-import { selfUpgrade } from './upgrade'
+import { createUpgrader } from './upgrade'
 
 export interface DaemonOptions {
   config: ResolvedConfig
@@ -30,54 +30,28 @@ export interface Daemon {
 }
 
 /**
- * Serves the dashboard API and, with `selfUpgrade.auto`, runs `selfUpgrade` on a timer. The dashboard's upgrade button
- * runs it on demand. Runs never overlap. After a deploy the process exits, so launchd or systemd restart it
- * on the freshly pulled code.
+ * Serves the dashboard API. Its upgrade button runs `selfUpgrade` on demand, one run at a time. After a
+ * deploy the process exits, so launchd or systemd restart it on the freshly pulled code.
  */
 export function runDaemon({ config, root, host, port, onWarnings, onUpgraded = () => process.exit(0) }: DaemonOptions): Daemon {
   const dir = join(root, '.dev-container')
-  let running: Promise<'up-to-date' | 'deployed'> | undefined
-
-  const upgrade = (force: boolean): Promise<'up-to-date' | 'deployed'> => {
-    // A second caller joins the run in flight.
-    running ??= selfUpgrade({ config, root, force, onWarnings })
-      .then((result) => {
-        if (result === 'deployed')
-          setTimeout(onUpgraded, 500).unref()
-        return result
-      })
-      .finally(() => {
-        running = undefined
-      })
-    return running
-  }
-
   const server = serveDashboard({
     dir,
     token: readDashboardToken(dir, config.dashboard.token),
     links: tailscaleLinks(config),
     hostname: host ?? config.dashboard.host,
     port: port ?? config.dashboard.port,
-    upgrade: () => upgrade(true),
+    // The delay lets the page see the run finish before the server goes away.
+    upgrade: createUpgrader({
+      config,
+      root,
+      onWarnings,
+      onDeployed: () => setTimeout(onUpgraded, 2000).unref(),
+    }),
   })
-
-  let timer: ReturnType<typeof setInterval> | undefined
-  if (config.selfUpgrade.auto) {
-    timer = setInterval(() => {
-      upgrade(false).catch((error: unknown) => {
-        process.stderr.write(`Upgrade failed, retrying in ${config.selfUpgrade.interval}s: ${error instanceof Error
-          ? error.message
-          : String(error)}\n`)
-      })
-    }, config.selfUpgrade.interval * 1000)
-  }
-
   return {
     server,
-    close: () => {
-      clearInterval(timer)
-      server.close()
-    },
+    close: () => server.close(),
   }
 }
 

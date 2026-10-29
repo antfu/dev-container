@@ -187,10 +187,6 @@ const Config = z.strictObject({
   secrets: z.array(Secret).default([]),
   /** How a stack kept in a git checkout on an always-on host pulls, rebuilds and restarts itself: `dev-container upgrade`, the daemon, or the dashboard's Upgrade button. */
   selfUpgrade: z.strictObject({
-    /** Upgrade on a timer: the daemon runs `dev-container upgrade` every `interval` seconds. Off, an upgrade only runs when asked. */
-    auto: z.boolean().default(false),
-    /** Seconds between automatic upgrades. */
-    interval: z.number().int().min(10).default(300),
     /** Shell command or commands run from the project root before `up`, such as `pnpm install --frozen-lockfile`. */
     command: z.union([
       z.string(),
@@ -198,7 +194,7 @@ const Config = z.strictObject({
     ]).transform(command => typeof command === 'string'
       ? [command]
       : command).default([]),
-  }).default({ auto: false, interval: 300, command: [] }),
+  }).default({ command: [] }),
   egress: Egress.default({ policy: 'open' }),
   /** The default node, for services without their own `tailscale`. */
   tailscale: Tailscale.optional(),

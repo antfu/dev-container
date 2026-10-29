@@ -241,7 +241,7 @@ dev-container up [compose up flags]    generate, then docker compose up -d --bui
 dev-container compose <args...>        docker compose against the generated stack
 dev-container serve [--host] [--port]  serve the dashboard API
 dev-container upgrade [--force]        pull the checkout, rebuild and restart when HEAD moved
-dev-container daemon run|install|uninstall  keep the dashboard running, upgrade on a schedule
+dev-container daemon run|install|uninstall  keep the dashboard running, with an Upgrade button
 ```
 
 `compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
@@ -291,6 +291,7 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 | --- | --- |
 | `GET /services` | state and health per service |
 | `GET /info` | `{ daemon }`: whether this server is the daemon, which upgrades need |
+| `GET /upgrade`, `POST /upgrade` | daemon only: commits the checkout is behind and the running upgrade step; start an upgrade |
 | `GET /stats` | CPU, memory, network, block IO, PIDs; `?stream=1` for SSE |
 | `GET /requests` | the broker's recent requests, allowed and denied, each with the service that sent it (`?tail=N`, up to 5000); paths have no query string |
 | `GET /services/{name}/logs` | `?tail=N`; `?follow=1` for SSE |
@@ -320,21 +321,21 @@ To mount the API in your own server instead, use `createDashboardApp({ dir, toke
 
 ## Keeping a host up to date
 
-For a stack kept in a git checkout on an always-on host, `dev-container upgrade` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs `selfUpgrade.command` first, then `up --build`, which rebuilds the images and restarts the services. A failed run leaves the old containers running and is retried on the next run. `upgrade --force` redeploys anyway.
+For a stack kept in a git checkout on an always-on host, `dev-container upgrade` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs `selfUpgrade.command` first, then builds the images and restarts the services, so the old containers keep running until the build succeeds. A failed run leaves the old containers running and is retried on the next run. `upgrade --force` redeploys anyway.
 
 ```ts
 export default defineConfig({
-  selfUpgrade: { auto: true, interval: 300, command: 'pnpm install --frozen-lockfile' },
+  selfUpgrade: { command: 'pnpm install --frozen-lockfile' },
 })
 ```
 
-`command` takes one shell command or a list. With `auto: true`, the daemon runs the upgrade every `interval` seconds; the default is `auto: false`.
+`command` takes one shell command or a list. An upgrade only runs when asked, from the CLI or the dashboard.
 
 ### The daemon
 
 `dev-container daemon run` serves the dashboard API and dashboard, like `serve`, and keeps running. `daemon install` registers it to start at login and restart whenever it exits: a launchd agent on macOS, a systemd user unit on Linux, logging to `.dev-container/daemon.log` on macOS. `daemon uninstall` removes it.
 
-The dashboard's **Upgrade** button (`POST /upgrade`) runs `upgrade --force` on demand, with or without `auto`. After a deploy the daemon exits so its supervisor starts it again on the pulled code.
+The dashboard fetches the checkout's upstream and shows how many new commits it has. Its **Upgrade** button (`POST /upgrade`) runs `upgrade --force` and shows each step as it goes: pulling changes, rebuilding images, restarting services. `GET /upgrade` reports the commit count and the run. After a deploy the daemon exits so its supervisor starts it again on the pulled code.
 
 ## Using it with an orchestrator
 

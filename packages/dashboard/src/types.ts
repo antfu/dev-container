@@ -59,3 +59,21 @@ export interface HostSummary {
   lastSeen: string
   requests: NetworkRequest[]
 }
+
+interface Commit {
+  sha: string
+  subject: string
+}
+
+export type UpgradePhase = 'pulling' | 'building' | 'restarting'
+
+/** `GET /upgrade`: what an upgrade would bring, and how a running one is doing. */
+export interface UpgradeStatus {
+  /** Absent when the server cannot tell, such as offline or without an upstream. */
+  behind?: number
+  commits?: Commit[]
+  run: {
+    phase: 'idle' | UpgradePhase | 'deployed' | 'up-to-date' | 'failed'
+    error?: string
+  }
+}

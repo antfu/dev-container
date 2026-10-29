@@ -8,8 +8,9 @@ import NetworkView from './components/NetworkView.vue'
 import OverviewView from './components/OverviewView.vue'
 import ServiceView from './components/ServiceView.vue'
 import SideNav from './components/SideNav.vue'
+import UpgradePanel from './components/UpgradePanel.vue'
 import { route, routeHref } from './route'
-import { busy, connect, connected, daemon, error, offline, refresh, REFRESH_MS, restartAll, updateAll, upgrade } from './state'
+import { busy, connect, connected, daemon, error, offline, refresh, REFRESH_MS, restartAll, updateAll, upgrade, upgradeStatus, upgrading } from './state'
 import { cycleTheme, theme } from './theme'
 
 const navOpen = ref(false)
@@ -57,8 +58,9 @@ onBeforeUnmount(() => clearInterval(timer))
         <span class="i-ph-circle-notch animate-spin" />{{ busy }}
       </span>
       <div class="flex items-center gap-1">
-        <button class="btn-ghost" :disabled="!!busy || offline || !daemon" title="Pull the git checkout, rebuild the images and restart; the daemon restarts itself" @click="upgrade">
+        <button class="btn-ghost" :disabled="!!busy || upgrading || offline || !daemon" title="Pull the git checkout, rebuild the images and restart; the daemon restarts itself" @click="upgrade">
           <span class="i-ph-rocket-launch-duotone" /><span class="hidden lg:inline">Upgrade</span>
+          <span v-if="upgradeStatus?.behind" class="badge">{{ upgradeStatus.behind }}</span>
         </button>
         <button class="btn-ghost" :disabled="!!busy || offline" title="Pull every image and recreate the services" @click="updateAll">
           <span class="i-ph-cloud-arrow-down-duotone" /><span class="hidden lg:inline">Update all</span>
@@ -80,7 +82,8 @@ onBeforeUnmount(() => clearInterval(timer))
         @navigate="navOpen = false"
       />
       <main class="min-w-0 flex-auto overflow-auto">
-        <DaemonBanner v-if="offline || !daemon" :offline="offline" />
+        <DaemonBanner v-if="(offline && !upgrading) || !daemon" :offline="offline" />
+        <UpgradePanel />
         <p v-if="error" class="m-0 flex items-center gap-2 border-b border-line px-4 py-2 text-sm text-bad" role="alert">
           <span class="i-ph-warning-circle-duotone" />{{ error }}
         </p>

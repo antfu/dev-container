@@ -1,6 +1,7 @@
 import type { ServerType } from '@hono/node-server'
 import type { SSEStreamingApi } from 'hono/streaming'
 import type { TailscaleLink } from './compose'
+import type { Upgrader } from './upgrade'
 import { Buffer } from 'node:buffer'
 import { execFile, spawn } from 'node:child_process'
 import { timingSafeEqual } from 'node:crypto'
@@ -33,8 +34,8 @@ export interface DashboardOptions {
   token: string
   /** Docker CLI binary. Defaults to `docker`. */
   docker?: string
-  /** Pulls the checkout and redeploys; set by the daemon. Without it `POST /upgrade` is refused. */
-  upgrade?: () => Promise<'up-to-date' | 'deployed'>
+  /** Pulls the checkout and redeploys; set by the daemon. Without it `/upgrade` is refused. */
+  upgrade?: Upgrader
   /** Tailnet URLs for the dashboard's quick links. */
   links?: TailscaleLink[]
 }
@@ -255,22 +256,46 @@ const routes = {
       ...errors,
     },
   }),
-  upgrade: createRoute({
-    method: 'post',
+  upgradeStatus: createRoute({
+    method: 'get',
     path: '/upgrade',
-    summary: 'Pull the git checkout, rebuild the images and restart; the daemon then restarts itself on the new code',
+    summary: 'How many commits the checkout is behind, and how a running upgrade is doing',
     responses: {
       200: {
-        description: 'Result of the upgrade',
+        description: 'Upgrade status',
         content: {
           'application/json': {
             schema: z.object({
-              ok: z.literal(true),
-              result: z.enum(['up-to-date', 'deployed']),
+              behind: z.number().int().optional().openapi({ description: 'Commits upstream has that the checkout lacks; absent when it cannot be told' }),
+              commits: z.array(z.object({
+                sha: z.string(),
+                subject: z.string(),
+              })).optional().openapi({ description: 'The newest of them' }),
+              run: z.object({
+                phase: z.enum([
+                  'idle',
+                  'pulling',
+                  'building',
+                  'restarting',
+                  'deployed',
+                  'up-to-date',
+                  'failed',
+                ]),
+                error: z.string().optional(),
+              }),
             }),
           },
         },
       },
+      ...errors,
+    },
+  }),
+  upgrade: createRoute({
+    method: 'post',
+    path: '/upgrade',
+    summary: 'Start pulling the git checkout, rebuilding the images and restarting; follow it with `GET /upgrade`. The daemon then restarts itself on the new code',
+    responses: {
+      200: { description: 'Started, or already running', content: ok },
       ...errors,
     },
   }),
@@ -479,10 +504,17 @@ export function createDashboardApp({ dir, token, docker = 'docker', upgrade, lin
     await update()
     return c.json({ ok: true as const }, 200)
   })
-  app.openapi(routes.upgrade, async (c) => {
+  const needsDaemon = (): ReturnType<typeof toBody> => toBody(diagnostics.DEV_CONTAINER_D4004({ message: 'Upgrades need the daemon. Run `dev-container daemon run` or `daemon install`.' }))
+  app.openapi(routes.upgradeStatus, async (c) => {
     if (!upgrade)
-      return c.json(toBody(diagnostics.DEV_CONTAINER_D4004({ message: 'Upgrades need the daemon. Run `dev-container daemon run` or `daemon install`.' })), 400)
-    return c.json({ ok: true as const, result: await upgrade() }, 200)
+      return c.json(needsDaemon(), 400)
+    return c.json(await upgrade.status(), 200)
+  })
+  app.openapi(routes.upgrade, (c) => {
+    if (!upgrade)
+      return c.json(needsDaemon(), 400)
+    upgrade.start()
+    return c.json({ ok: true as const }, 200)
   })
   app.openapi(routes.update, async (c) => {
     await update(c.req.valid('param').name)

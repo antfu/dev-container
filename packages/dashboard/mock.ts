@@ -110,6 +110,17 @@ function route(method: string, path: string): unknown {
     return {}
   if (path === '/info')
     return { daemon: true }
+  if (path === '/upgrade') {
+    return {
+      behind: 3,
+      commits: [
+        { sha: 'a1b2c3d', subject: 'feat: show new commits in the dashboard' },
+        { sha: 'e4f5a6b', subject: 'fix: keep the broker CA across restarts' },
+        { sha: '7c8d9e0', subject: 'chore: bump dependencies' },
+      ],
+      run: { phase: 'idle' },
+    }
+  }
   if (path === '/services')
     return { services: SERVICES }
   if (path === '/stats') {

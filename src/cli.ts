@@ -17,7 +17,7 @@ Commands:
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
   serve [--host] [--port]  Serve the dashboard API and dashboard (token: $DEV_CONTAINER_DASHBOARD_TOKEN, dashboard.token or .dev-container/dashboard-token)
   upgrade [--force]        Pull the checkout, rebuild and restart when HEAD moved
-  daemon run|install|uninstall  Serve the dashboard and, with selfUpgrade.auto, upgrade on a schedule
+  daemon run|install|uninstall  Serve the dashboard, with an Upgrade button
                            (install: launchd on macOS, a systemd user unit on Linux)
 
 Errors are printed as diagnostics with a code, a fix and a docs link. Pass --json
@@ -143,9 +143,7 @@ async function runDaemonCommand(args: string[], { config, root, json }: { config
     port,
     onWarnings: warnings => report(warnings, 'warning', json),
   })
-  process.stdout.write(`Daemon on http://${host}:${port}${config.selfUpgrade.auto
-    ? `, upgrading every ${config.selfUpgrade.interval}s`
-    : ''}\n`)
+  process.stdout.write(`Daemon on http://${host}:${port}\n`)
   return new Promise(() => {})
 }
 

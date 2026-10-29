@@ -57,26 +57,47 @@ describe('dashboard API', () => {
       dir: '/stack/.dev-container',
       token: 'secret-token',
       docker,
-      upgrade: async () => 'up-to-date',
+      upgrade: {
+        status: async () => ({
+          run: { phase: 'idle' },
+        }),
+        start: vi.fn(),
+      },
     })
     expect(await (await daemon.request('/info', auth)).json()).toEqual({ daemon: true })
   })
 
-  it('runs the daemon\'s upgrade, and refuses without one', async () => {
-    const upgrade = vi.fn(async () => 'deployed' as const)
+  it('reports and starts the daemon\'s upgrade, and refuses without one', async () => {
+    const status = {
+      behind: 2,
+      commits: [
+        { sha: 'abc1234', subject: 'feat: x' },
+      ],
+      run: { phase: 'building' as const },
+    }
+    const upgrade = {
+      status: vi.fn(async () => status),
+      start: vi.fn(),
+    }
     const withDaemon = createDashboardApp({
       dir: '/stack/.dev-container',
       token: 'secret-token',
       docker,
       upgrade,
     })
+    expect(await (await withDaemon.request('/upgrade', auth)).json()).toEqual(status)
     const response = await withDaemon.request('/upgrade', { method: 'POST', ...auth })
-    expect(await response.json()).toEqual({ ok: true, result: 'deployed' })
-    expect(upgrade).toHaveBeenCalledOnce()
+    expect(await response.json()).toEqual({ ok: true })
+    expect(upgrade.start).toHaveBeenCalledOnce()
 
-    const refused = await app().request('/upgrade', { method: 'POST', ...auth })
-    expect(refused.status).toBe(400)
-    expect(await refused.json()).toMatchObject({ name: 'DEV_CONTAINER_D4004' })
+    for (const init of [
+      auth,
+      { method: 'POST', ...auth },
+    ]) {
+      const refused = await app().request('/upgrade', init)
+      expect(refused.status).toBe(400)
+      expect(await refused.json()).toMatchObject({ name: 'DEV_CONTAINER_D4004' })
+    }
   })
 
   it('rejects requests without the token', async () => {

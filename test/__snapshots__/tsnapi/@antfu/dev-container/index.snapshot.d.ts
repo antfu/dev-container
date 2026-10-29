@@ -44,7 +44,7 @@ export interface DashboardOptions {
   dir: string;
   token: string;
   docker?: string;
-  upgrade?: () => Promise<'up-to-date' | 'deployed'>;
+  upgrade?: Upgrader;
   links?: TailscaleLink[];
 }
 export interface Generated {
@@ -153,5 +153,9 @@ interface StackContext {
   assets: string;
   placeholders: Record<string, string>;
   dashboardToken: string;
+}
+interface Upgrader {
+  status: () => Promise<UpgradeStatus>;
+  start: () => void;
 }
 // #endregion
