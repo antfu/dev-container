@@ -14,6 +14,7 @@ import { streamSSE } from 'hono/streaming'
 import { Diagnostic } from 'nostics'
 import { diagnostics } from './diagnostics'
 import { composeArgs, dockerFailure } from './docker'
+import { parseAddresses, parseRequests } from './requests'
 
 const run = promisify(execFile)
 
@@ -51,6 +52,21 @@ const Service = z.object({
   health: z.string().openapi({ description: 'Empty when the service has no healthcheck', example: 'healthy' }),
   status: z.string().openapi({ example: 'Up 2 minutes' }),
 }).openapi('Service')
+
+const NetworkRequest = z.object({
+  time: z.string().openapi({ example: '2026-10-29T09:00:00.000000000Z' }),
+  service: z.string().openapi({ description: 'The sending service; empty when unknown', example: 'agent' }),
+  scheme: z.string(),
+  host: z.string().openapi({ example: 'api.github.com' }),
+  port: z.number(),
+  method: z.string(),
+  path: z.string().openapi({ description: 'Without the query string' }),
+  outcome: z.enum(['allowed', 'blocked']),
+  status: z.number().optional().openapi({ description: 'The upstream status of an allowed request' }),
+  code: z.string().optional().openapi({ description: 'The diagnostic code of a blocked request', example: 'DEV_CONTAINER_B5001' }),
+  why: z.string().optional(),
+  injected: z.array(z.string()).openapi({ description: 'Secrets the broker swapped in' }),
+}).openapi('NetworkRequest')
 
 const Stats = z.object({
   service: z.string(),
@@ -149,6 +165,29 @@ const routes = {
             }),
           },
           ...sse('`stats` events carrying a Stats object'),
+        },
+      },
+      ...errors,
+    },
+  }),
+  requests: createRoute({
+    method: 'get',
+    path: '/requests',
+    summary: 'The broker\'s recent requests, allowed and blocked, newest last',
+    request: {
+      query: z.object({
+        tail: z.coerce.number().int().min(0).max(5000).default(500),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Requests that went through the broker',
+        content: {
+          'application/json': {
+            schema: z.object({
+              requests: z.array(NetworkRequest),
+            }),
+          },
         },
       },
       ...errors,
@@ -338,6 +377,30 @@ export function createDashboardApp({ dir, token, docker = 'docker', upgrade, lin
     return c.json({
       stats: stdout.split('\n').map(toStats).filter(s => s !== undefined),
     }, 200)
+  })
+
+  app.openapi(routes.requests, async (c) => {
+    const services = (await listServices()).filter(s => s.state === 'running')
+    const byContainer = new Map(services.map(s => [s.container, s.name]))
+    const [logs, inspected] = await Promise.all([
+      compose([
+        'logs',
+        '--no-color',
+        '--no-log-prefix',
+        '--timestamps',
+        '--tail',
+        String(c.req.valid('query').tail),
+        'broker',
+      ]),
+      byContainer.size
+        ? run(docker, [
+            'inspect',
+            ...byContainer.keys(),
+          ]).then(result => result.stdout)
+        : '[]',
+    ])
+    const requests = parseRequests(logs, parseAddresses(inspected, byContainer)).map(({ client: _client, ...request }) => request)
+    return c.json({ requests }, 200)
   })
 
   app.openapi(routes.logs, async (c) => {

@@ -12,8 +12,26 @@ def log(event, **fields):
     print(json.dumps({"event": event, **fields}), flush=True)
 
 
+def client(flow):
+    peer = flow.client_conn.peername
+    return peer[0] if peer else ""
+
+
 def block(flow, blocked):
-    log("block", code=blocked.code, host=flow.request.host, port=flow.request.port, method=flow.request.method, why=blocked.why)
+    req = flow.request
+    # The path only: a query string can carry anything the caller put in it.
+    log(
+        "block",
+        client=client(flow),
+        scheme=req.scheme,
+        host=req.host,
+        port=req.port,
+        method=req.method,
+        path=req.path.partition("?")[0],
+        code=blocked.code,
+        why=blocked.why,
+    )
+    flow.metadata["dc_logged"] = True
     flow.response = http.Response.make(
         403,
         blocked.render(),
@@ -56,7 +74,24 @@ class Broker:
             req.headers = http.Headers(
                 [(k.encode("utf-8", "surrogateescape"), v.encode("utf-8", "surrogateescape")) for k, v in decision.headers]
             )
-            log("inject", host=req.host, method=req.method, secrets=decision.injected)
+            flow.metadata["dc_injected"] = decision.injected
+
+    def response(self, flow: http.HTTPFlow):
+        # Blocked requests were logged as `block`; this records the ones that went out.
+        if flow.metadata.get("dc_logged"):
+            return
+        req = flow.request
+        log(
+            "request",
+            client=client(flow),
+            scheme=req.scheme,
+            host=req.host,
+            port=req.port,
+            method=req.method,
+            path=req.path.partition("?")[0],
+            status=flow.response.status_code if flow.response else 0,
+            injected=flow.metadata.get("dc_injected", []),
+        )
 
 
 addons = [Broker()]

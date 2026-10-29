@@ -142,6 +142,40 @@ describe('dashboard API', () => {
     expect(invocations()).toEqual(['compose -f /stack/.dev-container/compose.yml logs --no-color --no-log-prefix --tail 2 agent'])
   })
 
+  it('lists the broker\'s requests with the service that sent each', async () => {
+    const response = await app().request('/requests?tail=50', auth)
+    expect(await response.json()).toEqual({
+      requests: [
+        {
+          time: '2026-10-29T09:00:01.000000000Z',
+          service: 'agent',
+          scheme: 'https',
+          host: 'api.github.com',
+          port: 443,
+          method: 'GET',
+          path: '/user',
+          outcome: 'allowed',
+          status: 200,
+          injected: ['GITHUB_TOKEN'],
+        },
+        {
+          time: '2026-10-29T09:00:02.000000000Z',
+          service: 'agent',
+          scheme: 'https',
+          host: 'evil.example',
+          port: 443,
+          method: 'CONNECT',
+          path: '',
+          outcome: 'blocked',
+          code: 'DEV_CONTAINER_B5001',
+          why: 'Host evil.example is not on the egress allowlist.',
+          injected: [],
+        },
+      ],
+    })
+    expect(invocations()).toContain('compose -f /stack/.dev-container/compose.yml logs --no-color --no-log-prefix --timestamps --tail 50 broker')
+  })
+
   it('follows logs and stops docker when the client disconnects', async () => {
     const response = await app().request('/services/agent/logs?follow=1', auth)
     const events = await readEvents(response, 2)
@@ -223,6 +257,7 @@ describe('dashboard API', () => {
       '/services',
       '/links',
       '/stats',
+      '/requests',
       '/services/{name}/logs',
       '/restart',
       '/services/{name}/restart',

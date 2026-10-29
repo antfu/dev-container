@@ -12,7 +12,7 @@ Run any agent, orchestrator or command in a network-caged container whose tokens
 - 🚧 [**egress filter**](#config): an optional allowlist for network requests. The broker refuses any request, and any CONNECT tunnel, to a host that is not listed.
 - 🔁 **relay** (when you publish ports): forwards `127.0.0.1` ports on the host into the cage.
 - 🌐 [**tailscale**](#ports-relay-and-tailnet) (optional): serves chosen ports on your tailnet over HTTPS.
-- 📊 **dashboard**: a lightweight page for managing the services. It shows state, health, CPU and memory, tails logs, and restarts or updates a service.
+- 📊 **dashboard**: a lightweight page for managing the services. It shows state, health, CPU and memory, tails logs in a terminal that follows your colour scheme, lists the network requests each service made, allowed or denied, with config snippets and agent prompts to allow or block a host, and restarts or updates a service.
 
 ## Quick start
 
@@ -285,12 +285,13 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 
 ## Dashboard API
 
-`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small dashboard page at `/`. It binds to `127.0.0.1:7357` by default (`dashboard.host` and `dashboard.port` in config), and every API request needs the bearer token from `.dev-container/dashboard-token`. To choose the token yourself, set `DEV_CONTAINER_DASHBOARD_TOKEN` on the host or `dashboard.token` in the config. The env var wins over the config, and either one wins over the file, which is then not created. Prefer the env var when the config is committed. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, and restarts or updates a service.
+`dev-container serve` exposes the stack over HTTP for orchestrators and dashboards, and serves a small dashboard page at `/`. It binds to `127.0.0.1:7357` by default (`dashboard.host` and `dashboard.port` in config), and every API request needs the bearer token from `.dev-container/dashboard-token`. To choose the token yourself, set `DEV_CONTAINER_DASHBOARD_TOKEN` on the host or `dashboard.token` in the config. The env var wins over the config, and either one wins over the file, which is then not created. Prefer the env var when the config is committed. The page itself holds no secrets: open it, paste the token, and it lists services with state, health, CPU and memory, tails logs, shows the requests each service made through the broker with ready-to-copy config to allow or block a host, and restarts or updates a service.
 
 | Endpoint | |
 | --- | --- |
 | `GET /services` | state and health per service |
 | `GET /stats` | CPU, memory, network, block IO, PIDs; `?stream=1` for SSE |
+| `GET /requests` | the broker's recent requests, allowed and denied, each with the service that sent it (`?tail=N`, up to 5000); paths have no query string |
 | `GET /services/{name}/logs` | `?tail=N`; `?follow=1` for SSE |
 | `POST /services/{name}/restart` | restart one service |
 | `POST /restart` | restart the stack |

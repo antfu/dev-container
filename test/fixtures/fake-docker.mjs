@@ -61,6 +61,22 @@ else if (command === 'stats') {
 else if (command === 'logs' && rest.includes('--follow')) {
   forever(i => print(`line ${i}`))
 }
+else if (command === 'logs' && rest.includes('broker')) {
+  print('2026-10-29T09:00:00.000000000Z {"event":"ready","policy":"allowlist"}')
+  print('2026-10-29T09:00:01.000000000Z {"event":"request","client":"172.20.0.5","scheme":"https","host":"api.github.com","port":443,"method":"GET","path":"/user","status":200,"injected":["GITHUB_TOKEN"]}')
+  print('2026-10-29T09:00:02.000000000Z {"event":"block","client":"172.20.0.5","scheme":"https","host":"evil.example","port":443,"method":"CONNECT","path":"","code":"DEV_CONTAINER_B5001","why":"Host evil.example is not on the egress allowlist."}')
+  print('2026-10-29T09:00:03.000000000Z not json')
+}
+else if (command === 'inspect') {
+  print(JSON.stringify(rest.map((name, i) => ({
+    Name: `/${name}`,
+    NetworkSettings: {
+      Networks: {
+        caged: { IPAddress: `172.20.0.${i + 4}` },
+      },
+    },
+  }))))
+}
 else if (command === 'logs') {
   print('first\nsecond')
 }

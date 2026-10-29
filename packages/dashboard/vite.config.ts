@@ -20,6 +20,8 @@ export default defineConfig({
     proxy: {
       '/services': 'http://127.0.0.1:7357',
       '/stats': 'http://127.0.0.1:7357',
+      '/requests': 'http://127.0.0.1:7357',
+      '/links': 'http://127.0.0.1:7357',
       '/restart': 'http://127.0.0.1:7357',
       '/update': 'http://127.0.0.1:7357',
     },

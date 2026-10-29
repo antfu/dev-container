@@ -10,6 +10,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "catalog:web",
+    "@xterm/addon-fit": "catalog:web",
+    "@xterm/xterm": "catalog:web",
     "unocss": "catalog:web",
     "vite": "catalog:cli",
     "vite-plugin-singlefile": "catalog:web",

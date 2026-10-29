@@ -2,6 +2,7 @@
 import type { Link, Service, Stats } from './types'
 import { onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 import LoginForm from './components/LoginForm.vue'
+import NetworkPanel from './components/NetworkPanel.vue'
 import ServiceDetail from './components/ServiceDetail.vue'
 import ServiceTable from './components/ServiceTable.vue'
 import { api, setToken, token } from './composables/useApi'
@@ -95,6 +96,7 @@ onBeforeUnmount(() => clearInterval(timer))
       {{ error }}
     </p>
     <ServiceTable :services="services" :stats="stats" :selected="selected" :busy="!!busy" @select="selected = $event" @act="act" />
+    <NetworkPanel :services="services" />
     <ServiceDetail v-if="selected" ref="detail" :key="selected" :name="selected" />
   </main>
 </template>
