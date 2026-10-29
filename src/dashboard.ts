@@ -148,6 +148,24 @@ const routes = {
       ...errors,
     },
   }),
+  info: createRoute({
+    method: 'get',
+    path: '/info',
+    summary: 'What this server can do beyond `serve`',
+    responses: {
+      200: {
+        description: 'Capabilities',
+        content: {
+          'application/json': {
+            schema: z.object({
+              daemon: z.boolean().openapi({ description: 'Whether upgrades are available, which needs `daemon run`' }),
+            }),
+          },
+        },
+      },
+      ...errors,
+    },
+  }),
   stats: createRoute({
     method: 'get',
     path: '/stats',
@@ -340,6 +358,8 @@ export function createDashboardApp({ dir, token, docker = 'docker', upgrade, lin
   app.openapi(routes.services, async c => c.json({ services: await listServices() }, 200))
 
   app.openapi(routes.links, c => c.json({ links }, 200))
+
+  app.openapi(routes.info, c => c.json({ daemon: !!upgrade }, 200))
 
   app.openapi(routes.stats, async (c) => {
     const services = (await listServices()).filter(s => s.state === 'running')

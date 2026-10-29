@@ -290,6 +290,7 @@ Run `dev-container generate` before `docker compose up` so placeholders and env 
 | Endpoint | |
 | --- | --- |
 | `GET /services` | state and health per service |
+| `GET /info` | `{ daemon }`: whether this server is the daemon, which upgrades need |
 | `GET /stats` | CPU, memory, network, block IO, PIDs; `?stream=1` for SSE |
 | `GET /requests` | the broker's recent requests, allowed and denied, each with the service that sent it (`?tail=N`, up to 5000); paths have no query string |
 | `GET /services/{name}/logs` | `?tail=N`; `?follow=1` for SSE |

@@ -52,6 +52,14 @@ describe('dashboard API', () => {
     })
     expect(await (await withLinks.request('/links', auth)).json()).toEqual({ links })
     expect(await (await app().request('/links', auth)).json()).toEqual({ links: [] })
+    expect(await (await app().request('/info', auth)).json()).toEqual({ daemon: false })
+    const daemon = createDashboardApp({
+      dir: '/stack/.dev-container',
+      token: 'secret-token',
+      docker,
+      upgrade: async () => 'up-to-date',
+    })
+    expect(await (await daemon.request('/info', auth)).json()).toEqual({ daemon: true })
   })
 
   it('runs the daemon\'s upgrade, and refuses without one', async () => {
@@ -256,6 +264,7 @@ describe('dashboard API', () => {
     expect(Object.keys(doc.paths)).toEqual([
       '/services',
       '/links',
+      '/info',
       '/stats',
       '/requests',
       '/services/{name}/logs',
