@@ -6,9 +6,11 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "dev:live": "vite --mode live",
     "typecheck": "vue-tsc --noEmit"
   },
   "devDependencies": {
+    "@iconify-json/ph": "catalog:web",
     "@vitejs/plugin-vue": "catalog:web",
     "@xterm/addon-fit": "catalog:web",
     "@xterm/xterm": "catalog:web",

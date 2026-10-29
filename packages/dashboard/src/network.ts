@@ -7,6 +7,46 @@ export function hostPattern({ host, port }: { host: string, port: number }): str
     : `${host}:${port}`
 }
 
+/** The request's time in milliseconds; the broker writes nanoseconds, which `Date` does not read everywhere. */
+export function requestTime(request: Pick<NetworkRequest, 'time'>): number {
+  return new Date(request.time.replace(/(\.\d{3})\d+/, '$1')).getTime()
+}
+
+/** A request time as a local clock time, or as written when it does not parse. */
+export function clock(time: string): string {
+  const ms = requestTime({ time })
+  return Number.isNaN(ms)
+    ? time
+    : new Date(ms).toLocaleTimeString()
+}
+
+export interface Bin {
+  start: number
+  end: number
+  allowed: number
+  blocked: number
+}
+
+/** Counts requests into `count` equal slices of the `span` milliseconds up to `now`; older ones fall outside. */
+export function bin(requests: NetworkRequest[], now: number, span: number, count: number): Bin[] {
+  const size = span / count
+  const start = now - span
+  const bins: Bin[] = Array.from({ length: count }, (_, i) => ({
+    start: start + i * size,
+    end: start + (i + 1) * size,
+    allowed: 0,
+    blocked: 0,
+  }))
+  for (const request of requests) {
+    const index = Math.floor((requestTime(request) - start) / size)
+    const target = bins[Math.min(index, count - 1)]
+    if (index < 0 || !target)
+      continue
+    target[request.outcome]++
+  }
+  return bins
+}
+
 export function summarize(requests: NetworkRequest[]): HostSummary[] {
   const groups = new Map<string, HostSummary>()
   for (const request of requests) {

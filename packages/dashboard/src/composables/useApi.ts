@@ -2,7 +2,12 @@ import { ref } from 'vue'
 
 const STORAGE_KEY = 'dc-token'
 
-export const token = ref(sessionStorage.getItem(STORAGE_KEY) ?? '')
+/** Set by the dev server's mock API, which uses the browser's basic auth instead of a token. */
+declare const __MOCK__: boolean
+
+export const token = ref(__MOCK__
+  ? 'basic-auth'
+  : sessionStorage.getItem(STORAGE_KEY) ?? '')
 
 export function setToken(value: string): void {
   token.value = value
@@ -23,7 +28,13 @@ export class OfflineError extends Error {
 export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { ...init.headers, 'authorization': `Bearer ${token.value}`, 'content-type': 'application/json' },
+    headers: {
+      ...init.headers,
+      ...(__MOCK__
+        ? {}
+        : { authorization: `Bearer ${token.value}` }),
+      'content-type': 'application/json',
+    },
   }).catch(() => {
     throw new OfflineError()
   })

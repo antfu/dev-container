@@ -2,21 +2,21 @@
 import type { ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { isDark } from '../theme'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ lines: string[] }>()
 
 const host = useTemplateRef<HTMLElement>('host')
-const dark = window.matchMedia('(prefers-color-scheme: dark)')
 let term: Terminal | undefined
 let fit: FitAddon | undefined
 let resize: ResizeObserver | undefined
 
 const LIGHT: ITheme = {
-  foreground: '#18181b',
+  foreground: '#0a0a0a',
   cursor: 'transparent',
-  selectionBackground: '#bfdbfe',
+  selectionBackground: '#0a0a0a33',
   black: '#18181b',
   red: '#dc2626',
   green: '#16a34a',
@@ -36,9 +36,9 @@ const LIGHT: ITheme = {
 }
 
 const DARK: ITheme = {
-  foreground: '#e4e4e7',
+  foreground: '#fafafa',
   cursor: 'transparent',
-  selectionBackground: '#1e3a5f',
+  selectionBackground: '#fafafa33',
   black: '#52525b',
   red: '#f87171',
   green: '#4ade80',
@@ -57,11 +57,11 @@ const DARK: ITheme = {
   brightWhite: '#fafafa',
 }
 
-/** The page's own surface colour, so the terminal follows the colour scheme with the rest of the dashboard. */
+/** The page's own background, so the terminal follows the colour scheme with the rest of the dashboard. */
 function theme(): ITheme {
-  const background = getComputedStyle(document.documentElement).getPropertyValue('--c-surface').trim()
+  const background = getComputedStyle(document.documentElement).getPropertyValue('--c-bg').trim()
   return {
-    ...dark.matches ? DARK : LIGHT,
+    ...isDark.value ? DARK : LIGHT,
     background,
   }
 }
@@ -109,19 +109,19 @@ onMounted(() => {
     render()
   })
   resize.observe(host.value!)
-  dark.addEventListener('change', applyTheme)
   render()
 })
 
 onBeforeUnmount(() => {
-  dark.removeEventListener('change', applyTheme)
   resize?.disconnect()
   term?.dispose()
 })
 
 watch(() => props.lines, render)
+// The tokens change with the `dark` class, which is set in the same tick as the flag.
+watch(isDark, () => nextTick(applyTheme))
 </script>
 
 <template>
-  <div ref="host" class="panel h-96 p-3 overflow-hidden" />
+  <div ref="host" class="h-[28rem] px-4 py-3 overflow-hidden" />
 </template>
