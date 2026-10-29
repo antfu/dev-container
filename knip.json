@@ -3,6 +3,11 @@
   "ignoreDependencies": ["@antfu/utils", "taze", "@antfu/skills"],
   "workspaces": {
     ".": { "project": ["src/**/*.ts"] },
-    "packages/dashboard": { "entry": ["dashboard.html"], "project": ["src/**/*.{ts,vue}"] }
+    "packages/dashboard": {
+      "entry": ["dashboard.html"],
+      "project": ["src/**/*.{ts,vue}"],
+      // Loaded by name through `presetIcons`, never imported.
+      "ignoreDependencies": ["@iconify-json/ph"]
+    }
   }
 }

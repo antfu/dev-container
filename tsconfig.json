@@ -13,5 +13,7 @@
     "verbatimModuleSyntax": true,
     "skipDefaultLibCheck": true,
     "skipLibCheck": true
-  }
+  },
+  // The dashboard is checked by its own vue-tsc config, with the DOM types it needs.
+  "exclude": ["packages/dashboard", "dist", "node_modules"]
 }

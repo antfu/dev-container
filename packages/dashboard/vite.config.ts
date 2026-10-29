@@ -18,12 +18,14 @@ export default defineConfig({
   server: {
     // `dev-container serve` in another terminal provides the API.
     proxy: {
+      '/info': 'http://127.0.0.1:7357',
       '/services': 'http://127.0.0.1:7357',
       '/stats': 'http://127.0.0.1:7357',
       '/requests': 'http://127.0.0.1:7357',
       '/links': 'http://127.0.0.1:7357',
       '/restart': 'http://127.0.0.1:7357',
       '/update': 'http://127.0.0.1:7357',
+      '/upgrade': 'http://127.0.0.1:7357',
     },
   },
 })
