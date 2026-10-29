@@ -345,6 +345,7 @@ Orchestrators run inside the cage like any other service, and their agents run a
 - [`pi`](./examples/pi): pi with an Anthropic subscription token.
 - [`claude`](./examples/claude): Claude Code as a shell agent, with an egress allowlist.
 - [`amp`](./examples/amp): Amp as a shell agent, with an egress allowlist.
+- [`skills`](./examples/skills): global agent skills installed from a `skills.txt` with the skills CLI, kept with their lock file.
 - [`vercel-ai-gateway`](./examples/vercel-ai-gateway): Claude Code, Codex, opencode and pi through one Vercel AI Gateway key.
 - [`git-signing`](./examples/git-signing): a shell agent whose commits are signed with an SSH key, configured through git's own environment variables.
 

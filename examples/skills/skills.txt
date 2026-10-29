@@ -1,0 +1,7 @@
+# Global skills for every agent in this container. One source per line:
+#   <source> [skill ...]
+# With no skill names, every skill in the source is installed. Restart the service after editing:
+#   dev-container compose restart skills
+antfu/skills antfu
+vuejs-ai/skills vue-best-practices vue-testing-best-practices
+mattpocock/skills tdd

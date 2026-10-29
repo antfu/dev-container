@@ -1,0 +1,29 @@
+#!/bin/sh
+# Installs the global skills listed in skills.txt, then runs the container's command.
+#
+# Each line is `<source> [skill ...]`: a GitHub repo (`owner/repo`), a URL or a local path, then the
+# names of the skills to take from it. With no names, every skill in the source is installed.
+# Blank lines and lines starting with `#` are skipped.
+#
+# Global skills land in ~/.agents/skills and in each agent's own skills directory, and `skills` records
+# them in ~/.agents/.skill-lock.json. The config persists ~/.agents, so both survive recreation.
+set -u
+# A bare `*` in the skill list is a name for `skills`, not a pattern for the shell.
+set -f
+
+list="${SKILLS_FILE:-/home/node/skills.txt}"
+agents="${SKILLS_AGENTS:-claude-code codex}"
+
+if [ -f "$list" ]; then
+  # One failed source must not keep the container from starting, so report it and go on.
+  grep -v -E '^[[:space:]]*(#|$)' "$list" | while read -r source skills; do
+    echo "install-skills: $source ${skills:-(all skills)}"
+    # shellcheck disable=SC2086
+    skills add "$source" --global --yes --agent $agents --skill ${skills:-*} \
+      || echo "install-skills: could not install $source" >&2
+  done
+else
+  echo "install-skills: no $list, nothing to install" >&2
+fi
+
+exec "$@"
