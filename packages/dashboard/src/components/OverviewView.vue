@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { niceBytes } from '../chart'
 import { bin, hostPattern, summarize } from '../network'
 import { navigate, routeHref } from '../route'
-import { busy, history, now, offline, REFRESH_MS, requests, restartService, services, stats, updateService } from '../state'
+import { busy, history, links, now, offline, REFRESH_MS, requests, restartService, services, stats, updateService } from '../state'
 import { formatBytes, formatPercent, parsePair, severity, total } from '../usage'
 import LineChart from './LineChart.vue'
 import RequestChart from './RequestChart.vue'
@@ -102,8 +102,19 @@ const busiest = computed(() => Math.max(1, ...hosts.value.map(h => h.requests.le
       </div>
     </UiSection>
 
+    <UiSection v-if="links.length" index="02" title="Tailnet">
+      <a
+        v-for="l in links" :key="l.url" :href="l.url" target="_blank" rel="noopener"
+        class="focus-ring grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-4 border-b border-line px-4 py-2 text-fg no-underline transition-colors last:border-b-0 hover:bg-hover"
+      >
+        <span class="truncate font-mono text-sm font-medium">{{ l.name }}</span>
+        <span class="truncate font-mono text-xs text-muted">{{ l.url }}</span>
+        <span class="i-ph-arrow-up-right text-faint" />
+      </a>
+    </UiSection>
+
     <div class="grid md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <UiSection index="02" title="Traffic · 30 min" class="md:border-r">
+      <UiSection index="03" title="Traffic · 30 min" class="md:border-r">
         <template #aside>
           <span class="flex-auto" />
           <a :href="routeHref({ view: 'network' })" class="focus-ring font-mono text-xs text-muted hover:underline">Open network</a>
@@ -112,7 +123,7 @@ const busiest = computed(() => Math.max(1, ...hosts.value.map(h => h.requests.le
           <RequestChart :bins="bins" />
         </div>
       </UiSection>
-      <UiSection index="03" title="Top hosts">
+      <UiSection index="04" title="Top hosts">
         <p v-if="!hosts.length" class="m-0 px-4 py-3 text-sm text-muted">
           No requests yet.
         </p>
