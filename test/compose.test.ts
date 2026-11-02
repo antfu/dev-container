@@ -341,6 +341,26 @@ describe('buildStack', () => {
     expect(compose.services.relay!.ports).toEqual(['127.0.0.1:3000:3000', '192.168.1.20:4000:4000'])
   })
 
+  it('serves a port as plain HTTP on a second tailnet port', () => {
+    const { tailscaleServe } = build({
+      tailscale: { hostname: 'ts' },
+      services: {
+        agent: {
+          image: 'alpine',
+          ports: [
+            { port: 3000, tailnet: true, http: 80 },
+          ],
+        },
+      },
+    })
+    const serve = Object.values(tailscaleServe)[0]!
+    expect(serve.TCP).toEqual({
+      443: { HTTPS: true },
+      80: { HTTP: true },
+    })
+    expect(Object.keys(serve.Web)).toEqual([443, 80].map(port => `\${TS_CERT_DOMAIN}:${port}`))
+  })
+
   it('resolves relative and home volume paths but keeps named volumes', () => {
     const { compose } = build({
       services: {
