@@ -326,6 +326,21 @@ describe('buildStack', () => {
     expect(compose.services.relay!.ports).toEqual(['[::1]:3000:3000'])
   })
 
+  it('lets a port override the bind address', () => {
+    const { compose } = build({
+      services: {
+        agent: {
+          image: 'alpine',
+          ports: [
+            3000,
+            { port: 4000, bind: '192.168.1.20' },
+          ],
+        },
+      },
+    })
+    expect(compose.services.relay!.ports).toEqual(['127.0.0.1:3000:3000', '192.168.1.20:4000:4000'])
+  })
+
   it('resolves relative and home volume paths but keeps named volumes', () => {
     const { compose } = build({
       services: {

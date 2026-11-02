@@ -82,6 +82,8 @@ interface PublishedPort {
   node?: string
   /** The port the sidecar serves it on: 443 unless `tailnet` names another. */
   tailnetPort?: number
+  /** The host address it is published on. */
+  bind: string
 }
 
 /** The port `tailscale serve` listens on unless a port or the dashboard names another. */
@@ -219,9 +221,9 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
       command: ports.map(p => `${p.target}:${formatRange(p)}`),
       networks: ['caged', 'egress'],
       sysctls: NO_FORWARDING,
-      ports: ports.map(p => `${config.bind.includes(':')
-        ? `[${config.bind}]`
-        : config.bind}:${formatRange(p)}:${formatRange(p)}`),
+      ports: ports.map(p => `${p.bind.includes(':')
+        ? `[${p.bind}]`
+        : p.bind}:${formatRange(p)}:${formatRange(p)}`),
       restart: 'unless-stopped',
     }
   }
@@ -423,7 +425,7 @@ function placeholderOf(ctx: StackContext, env: string): string {
 function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): PublishedPort[] {
   const ports = Object.entries(config.services).flatMap(([service, { ports }]) => {
     const node = nodes.find(n => n.services.includes(service))?.name
-    return ports.map(({ port, tailnet }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node))
+    return ports.map(({ port, tailnet, bind }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node, bind ?? config.bind))
   })
   const tailnet = new Map<string, string>()
   for (const { service, node, tailnetPort = TAILNET_PORT } of ports) {
@@ -447,13 +449,14 @@ function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): Published
   return ports
 }
 
-function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined): PublishedPort {
+function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined, bind: string): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
   const parsed = {
     service,
     target,
     start,
     end,
+    bind,
     ...tailnet && { node },
     ...typeof tailnet === 'number' && { tailnetPort: tailnet },
   }
