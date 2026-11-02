@@ -47,7 +47,7 @@ export interface BrokerRules {
 }
 
 interface TailscaleServe {
-  TCP: Record<string, { HTTPS: true }>
+  TCP: Record<string, { HTTPS: true } | { HTTP: true }>
   Web: Record<string, { Handlers: Record<string, { Proxy: string }> }>
 }
 
@@ -84,6 +84,8 @@ interface PublishedPort {
   tailnetPort?: number
   /** The host address it is published on. */
   bind: string
+  /** A second tailnet port that serves the same port as plain HTTP. */
+  httpPort?: number
 }
 
 /** The port `tailscale serve` listens on unless a port or the dashboard names another. */
@@ -126,6 +128,21 @@ export function tailscaleLinks(config: ResolvedConfig): TailscaleLink[] {
     }
   }
   return links
+}
+
+/** Adds the HTTPS entry for a port, and the plain HTTP one when it names a second tailnet port. */
+function serveTailnetPort(serve: TailscaleServe, { target, start, tailnetPort = TAILNET_PORT, httpPort }: PublishedPort): void {
+  const web = {
+    Handlers: {
+      '/': { Proxy: `http://${target}:${start}` },
+    },
+  }
+  serve.TCP[tailnetPort] = { HTTPS: true }
+  serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = web
+  if (httpPort) {
+    serve.TCP[httpPort] = { HTTP: true }
+    serve.Web[`\${TS_CERT_DOMAIN}:${httpPort}`] = web
+  }
 }
 
 export function envFilePath(dir: string, name: string): string {
@@ -240,14 +257,8 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
         },
       }
     }
-    for (const { target, start, tailnetPort = TAILNET_PORT } of ports.filter(p => p.node === node.name)) {
-      serve.TCP[tailnetPort] = { HTTPS: true }
-      serve.Web[`\${TS_CERT_DOMAIN}:${tailnetPort}`] = {
-        Handlers: {
-          '/': { Proxy: `http://${target}:${start}` },
-        },
-      }
-    }
+    for (const port of ports.filter(p => p.node === node.name))
+      serveTailnetPort(serve, port)
     const state = join(ctx.dir, 'state', node.name)
     persistDirs.push(state)
     services[node.name] = {
@@ -425,18 +436,9 @@ function placeholderOf(ctx: StackContext, env: string): string {
 function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): PublishedPort[] {
   const ports = Object.entries(config.services).flatMap(([service, { ports }]) => {
     const node = nodes.find(n => n.services.includes(service))?.name
-    return ports.map(({ port, tailnet, bind }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node, bind ?? config.bind))
+    return ports.map(({ port, tailnet, bind, http }) => parsePort(service, networkOwner(config, service), String(port), tailnet, node, bind ?? config.bind, http))
   })
-  const tailnet = new Map<string, string>()
-  for (const { service, node, tailnetPort = TAILNET_PORT } of ports) {
-    if (!node)
-      continue
-    const key = `${node}:${tailnetPort}`
-    const first = tailnet.get(key)
-    if (first)
-      throw diagnostics.DEV_CONTAINER_N3008({ port: tailnetPort, first, second: service })
-    tailnet.set(key, service)
-  }
+  checkTailnetPorts(ports)
   const owners = new Map<number, string>()
   for (const { service, start, end } of ports) {
     for (let p = start; p <= end; p++) {
@@ -449,7 +451,24 @@ function collectPorts(config: ResolvedConfig, nodes: TailscaleNode[]): Published
   return ports
 }
 
-function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined, bind: string): PublishedPort {
+function checkTailnetPorts(ports: PublishedPort[]): void {
+  const tailnet = new Map<string, string>()
+  for (const { service, node, tailnetPort = TAILNET_PORT, httpPort } of ports) {
+    if (!node)
+      continue
+    for (const port of httpPort
+      ? [tailnetPort, httpPort]
+      : [tailnetPort]) {
+      const key = `${node}:${port}`
+      const first = tailnet.get(key)
+      if (first)
+        throw diagnostics.DEV_CONTAINER_N3008({ port, first, second: service })
+      tailnet.set(key, service)
+    }
+  }
+}
+
+function parsePort(service: string, target: string, port: string, tailnet: boolean | number, node: string | undefined, bind: string, http?: number): PublishedPort {
   const [start = 0, end = start] = port.split('-').map(Number)
   const parsed = {
     service,
@@ -459,6 +478,7 @@ function parsePort(service: string, target: string, port: string, tailnet: boole
     bind,
     ...tailnet && { node },
     ...typeof tailnet === 'number' && { tailnetPort: tailnet },
+    ...http && tailnet && { httpPort: http },
   }
   if (start < 1 || end > 65535 || end < start)
     throw diagnostics.DEV_CONTAINER_N3002({ port, service })

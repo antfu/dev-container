@@ -197,6 +197,8 @@ Caged services cannot publish ports themselves; that would need a non-internal n
 
 With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net`, on port 443. Use a number, as in `{ port: 8100, tailnet: 8100 }`, to serve the port on another tailnet port. Each tailnet port is used once per node, so a second service on the same node needs its own number or its own `tailscale` node. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
 
+Add `http` with a tailnet port, as in `{ port: 5656, tailnet: true, http: 80 }`, to also serve the port as plain HTTP there, for clients that cannot use TLS. It requires `tailnet`, and the dashboard lists only the HTTPS link.
+
 Set `domain` on a tailscale node (for example `tailscale: { hostname: 'agents', domain: 'tail1234.ts.net' }`) to tell the config your tailnet's name. The dashboard then lists every tailnet URL, including the dashboard's own, as quick links. One node's `domain` serves all the others; without it the list is empty.
 
 To give a service its own MagicDNS name, set `tailscale` on the service. It gets its own sidecar, `tailscale-<service>`, with its own state in `.dev-container/state/tailscale-<service>/`. Services without one use the top-level node. A node without its own `authKey` uses the top-level one, which defaults to `TS_AUTHKEY`. Ports stay unique across the stack, because the relay also publishes them on the host, but a tailnet port such as 443 can repeat across nodes.

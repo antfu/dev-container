@@ -85,10 +85,17 @@ const Port = z.union([
     ]).default(false),
     // Host address to publish this port on instead of the top-level `bind`.
     bind: z.string().optional(),
+    // Also serve the port as plain HTTP (no TLS) on this tailnet port, next to the HTTPS one.
+    http: z.number().int().min(1).max(65535).optional(),
   }),
 ]).transform(port => typeof port === 'object'
   ? port
-  : { port, tailnet: false, bind: undefined })
+  : {
+      port,
+      tailnet: false,
+      bind: undefined,
+      http: undefined,
+    })
 
 const Tailscale = z.strictObject({
   hostname: z.string().min(1),
