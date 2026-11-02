@@ -193,7 +193,7 @@ Agent CLIs use their tokens directly, so letting them hold those tokens costs no
 
 ### Ports, relay and tailnet
 
-Caged services cannot publish ports themselves; that would need a non-internal network. Listed `ports` are published by the relay on `bind` (default `127.0.0.1`) and forwarded into the cage. Services must listen on `0.0.0.0`.
+Caged services cannot publish ports themselves; that would need a non-internal network. Listed `ports` are published by the relay on `bind` (default `127.0.0.1`) and forwarded into the cage. A port can set its own `bind`, as in `{ port: 5656, bind: '192.168.1.20' }`, to be published on another address. Services must listen on `0.0.0.0`.
 
 With `tailscale` configured, ports marked `tailnet: true` are also served as `https://<hostname>.<tailnet>.ts.net`, on port 443. Use a number, as in `{ port: 8100, tailnet: 8100 }`, to serve the port on another tailnet port. Each tailnet port is used once per node, so a second service on the same node needs its own number or its own `tailscale` node. That requires HTTPS certificates to be enabled for your tailnet. The sidecar is not an exit node or subnet router, so it gives the cage no route out.
 

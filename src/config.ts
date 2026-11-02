@@ -83,10 +83,12 @@ const Port = z.union([
       z.boolean(),
       z.number().int().min(1).max(65535),
     ]).default(false),
+    // Host address to publish this port on instead of the top-level `bind`.
+    bind: z.string().optional(),
   }),
 ]).transform(port => typeof port === 'object'
   ? port
-  : { port, tailnet: false })
+  : { port, tailnet: false, bind: undefined })
 
 const Tailscale = z.strictObject({
   hostname: z.string().min(1),
