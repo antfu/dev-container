@@ -7,6 +7,7 @@ Every error `dev-container` reports carries one of these codes, a fix, and a lin
 | [DEV_CONTAINER_C1001](./DEV_CONTAINER_C1001.md) | No config file | host |
 | [DEV_CONTAINER_C1002](./DEV_CONTAINER_C1002.md) | Invalid config | host |
 | [DEV_CONTAINER_C1003](./DEV_CONTAINER_C1003.md) | Two secrets claim the same variable | host |
+| [DEV_CONTAINER_C1004](./DEV_CONTAINER_C1004.md) | Service secret has nothing to replace | host |
 | [DEV_CONTAINER_S2001](./DEV_CONTAINER_S2001.md) | Secret variable not set | host |
 | [DEV_CONTAINER_S2002](./DEV_CONTAINER_S2002.md) | Builtin secret is off | host |
 | [DEV_CONTAINER_S2003](./DEV_CONTAINER_S2003.md) | Secret command failed | host |

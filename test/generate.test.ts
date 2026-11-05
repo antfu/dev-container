@@ -323,6 +323,45 @@ describe('builtin secrets', () => {
     expect(warnings.map(w => w.name)).toEqual(['DEV_CONTAINER_S2002'])
   })
 
+  it('gives a service its own source for a brokered secret, with its own placeholder', () => {
+    const root = project()
+    const { services, brokerEnv } = run({
+      services: {
+        agent: { image: 'alpine' },
+        main: {
+          image: 'alpine',
+          secrets: {
+            GITHUB_TOKEN: { env: 'GITHUB_TOKEN_MAIN' },
+          },
+        },
+      },
+    }, { GITHUB_TOKEN: 'ghp_bot', GITHUB_TOKEN_MAIN: 'ghp_main' }, root)
+
+    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GITHUB_TOKEN='ghp_bot'\nDEV_CONTAINER_SECRET_GITHUB_TOKEN__main='ghp_main'\n`)
+    const { agent: bot, main } = services
+    expect(main.environment.GITHUB_TOKEN).not.toBe(bot.environment.GITHUB_TOKEN)
+    expect(main.environment.GH_TOKEN).toBe(main.environment.GITHUB_TOKEN)
+    const rules = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets
+    expect(rules.map((s: { name: string, placeholder: string, hosts: string[] }) => [s.name, s.placeholder])).toEqual([
+      ['GITHUB_TOKEN', bot.environment.GITHUB_TOKEN],
+      ['GITHUB_TOKEN__main', main.environment.GITHUB_TOKEN],
+    ])
+    expect(rules[1].hosts).toEqual(rules[0].hosts)
+  })
+
+  it('rejects a service source for a variable no active secret has', () => {
+    expect(() => run({
+      services: {
+        agent: {
+          image: 'alpine',
+          secrets: {
+            NOPE_TOKEN: { env: 'X' },
+          },
+        },
+      },
+    }, { GITHUB_TOKEN: 'ghp_real', X: 'x' })).toThrow(expect.objectContaining({ name: 'DEV_CONTAINER_C1004' }))
+  })
+
   it('rejects a custom secret that claims a builtin variable', () => {
     expect(() => run({
       secrets: [

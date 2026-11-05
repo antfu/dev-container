@@ -10,7 +10,7 @@ import { Diagnostic } from 'nostics'
 import { stringify } from 'yaml'
 import { BUILTIN_NAMES, BUILTINS } from './builtins'
 import { buildStack, envFilePath, serveFilePath } from './compose'
-import { tailscaleNodes } from './config'
+import { serviceSecrets, tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 import { formatEnvFile, lookupEnv, readEnvFile, resolveSource } from './secrets'
 
@@ -66,7 +66,10 @@ export function generate({ config: userConfig, root, env = process.env }: Genera
     root,
     dir,
     assets: fileURLToPath(new URL('..', import.meta.url)),
-    placeholders: Object.fromEntries(config.secrets.map(s => [s.env, `dc-${s.env}-${randomBytes(8).toString('hex')}`])),
+    placeholders: Object.fromEntries([
+      ...config.secrets.map(s => s.env),
+      ...serviceSecrets(config).map(s => s.key),
+    ].map(key => [key, `dc-${key}-${randomBytes(8).toString('hex')}`])),
     dashboardToken: readDashboardToken(dir, config.dashboard.token, env),
   })
 
@@ -160,6 +163,7 @@ function envsRead(config: ResolvedConfig): Set<string> {
         : []
     }),
     ...Object.values(config.services).flatMap(service => Object.values(service.env).filter(value => typeof value !== 'string')),
+    ...Object.values(config.services).flatMap(service => Object.values(service.secrets)),
   ]
   return new Set(sources.flatMap(source => 'env' in source
     ? [source.env]
@@ -182,9 +186,20 @@ function resolveEnvFiles(config: ResolvedConfig, lookup: SecretLookup): Record<s
   }
 
   const files: Record<string, Record<string, string>> = {
-    broker: Object.fromEntries(config.secrets.map(secret => [
-      `DEV_CONTAINER_SECRET_${secret.env}`,
-      attempt(secret.from ?? { env: secret.env }, `secret ${secret.env}`),
+    broker: Object.fromEntries([
+      ...config.secrets.map(secret => ({
+        key: secret.env,
+        secret,
+        label: `secret ${secret.env}`,
+      })),
+      ...serviceSecrets(config).map(({ service, key, secret }) => ({
+        key,
+        secret,
+        label: `services.${service}.secrets.${secret.env}`,
+      })),
+    ].map(({ key, secret, label }) => [
+      `DEV_CONTAINER_SECRET_${key}`,
+      attempt(secret.from ?? { env: secret.env }, label),
     ])),
   }
   for (const node of tailscaleNodes(config)) {

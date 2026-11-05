@@ -2,7 +2,7 @@ import type { JsonValue, ResolvedConfig, ResolvedService, TailscaleNode } from '
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { defu } from 'defu'
-import { tailscaleNodes } from './config'
+import { serviceSecrets, tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 
 const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
@@ -58,7 +58,7 @@ export interface StackContext {
   dir: string
   /** Package root that holds the `services/broker/` and `services/relay/` build contexts. */
   assets: string
-  /** Secret env name -> placeholder. */
+  /** Secret name -> placeholder; a service's own secret is named by `serviceSecrets`. */
   placeholders: Record<string, string>
   dashboardToken: string
 }
@@ -169,9 +169,12 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
   const rules: BrokerRules = {
     policy: config.egress.policy,
     allow,
-    secrets: config.secrets.map(secret => ({
-      name: secret.env,
-      placeholder: placeholderOf(ctx, secret.env),
+    secrets: [
+      ...config.secrets.map(secret => ({ key: secret.env, secret })),
+      ...serviceSecrets(config),
+    ].map(({ key, secret }) => ({
+      name: key,
+      placeholder: placeholderOf(ctx, key),
       hosts: secret.hosts,
       rules: secret.rules.map(({ action, method, path }) => ({
         action,
@@ -329,6 +332,8 @@ function cagedService(
   if (service.git?.email)
     Object.assign(environment, { GIT_AUTHOR_EMAIL: service.git.email, GIT_COMMITTER_EMAIL: service.git.email })
 
+  Object.assign(environment, ownSecretPlaceholders(config, ctx, name))
+
   const hasSecretEnv = Object.values(service.env).some(value => typeof value !== 'string')
   for (const [key, value] of Object.entries(service.env)) {
     if (typeof value === 'string')
@@ -424,6 +429,16 @@ function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<stri
     environment[`GIT_CONFIG_VALUE_${i}`] = `!f() { test "$1" = get && printf 'username=${username}\\npassword=%s\\n' "$${env}"; }; f`
   })
   return environment
+}
+
+/** The variables whose placeholder this service has of its own, from its `secrets`. */
+function ownSecretPlaceholders(config: ResolvedConfig, ctx: StackContext, service: string): Record<string, string> {
+  return Object.fromEntries(serviceSecrets(config)
+    .filter(own => own.service === service)
+    .flatMap(({ key, secret }) => [secret.env, ...secret.aliases].map(env => [
+      env,
+      placeholderOf(ctx, key),
+    ])))
 }
 
 function placeholderOf(ctx: StackContext, env: string): string {

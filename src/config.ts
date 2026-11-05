@@ -124,6 +124,12 @@ const Service = z.strictObject({
     z.string(),
     EnvReference,
   ])).default({}),
+  /**
+   * Brokered secrets this service reads from another source, keyed by the variable of a builtin or a `secrets`
+   * entry. The service gets its own placeholder for the variable, and the broker swaps in this source's value
+   * for it, towards the same hosts and under the same rules.
+   */
+  secrets: z.record(EnvName, SecretSource).default({}),
   ports: z.array(Port).default([]),
   volumes: z.array(z.string().refine(volume => !RESERVED_VOLUMES.has(volume.split(':')[0] ?? ''), 'uses a volume name reserved by dev-container')).default([]),
   /** `service:<name>` joins another caged service's network namespace, so both share `localhost`. */
@@ -237,6 +243,28 @@ export type ResolvedSecret = z.output<typeof Secret>
 export type ResolvedService = z.output<typeof Service>
 export type SecretSourceConfig = z.output<typeof SecretSource>
 export type JsonValue = z.output<ReturnType<typeof z.json>>
+
+export interface ServiceSecret {
+  service: string
+  /** The broker's name for it, and the key of its placeholder and value. */
+  key: string
+  /** The stack's secret of that variable, read from the service's own source. */
+  secret: ResolvedSecret
+}
+
+/** The services' own sources for brokered secrets. `config.secrets` must hold the active secrets. */
+export function serviceSecrets(config: ResolvedConfig): ServiceSecret[] {
+  return Object.entries(config.services).flatMap(([service, { secrets }]) => Object.entries(secrets).map(([env, from]) => {
+    const secret = config.secrets.find(s => s.env === env)
+    if (!secret)
+      throw diagnostics.DEV_CONTAINER_C1004({ service, env })
+    return {
+      service,
+      key: `${env}__${service.replace(/\W/g, '_')}`,
+      secret: { ...secret, from },
+    }
+  }))
+}
 
 export interface TailscaleNode {
   /** Compose service name of the sidecar; also names its state, env and serve files. */

@@ -189,6 +189,23 @@ Both kinds come from the host: `{ env: 'NAME' }` (the shell environment, then ea
 
 A service `env` reference can be `{ env: 'NAME', optional: true }`. The variable is left out when `NAME` is unset instead of failing the run, so one config serves hosts that set different keys.
 
+A service can read a brokered secret from another source with `secrets`, keyed by the secret's variable. The service gets its own placeholder in that variable, so two services can use different accounts of the same host, with the same bound hosts and rules:
+
+```ts
+export default defineConfig({
+  services: {
+    bot: { image: 'agent' }, // GITHUB_TOKEN from .env.secret
+    main: {
+      image: 'agent',
+      // Its own token; git and gh use it too.
+      secrets: {
+        GITHUB_TOKEN: { env: 'GITHUB_TOKEN_MAIN' }
+      },
+    },
+  },
+})
+```
+
 Agent CLIs use their tokens directly, so letting them hold those tokens costs nothing extra. Keep their logins across recreation with `persist`, e.g. `persist: ['/home/node/.claude']`.
 
 ### Ports, relay and tailnet
