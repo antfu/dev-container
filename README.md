@@ -342,7 +342,7 @@ To mount the API in your own server instead, use `createDashboardApp({ dir, toke
 
 ## Keeping a host up to date
 
-For a stack kept in a git checkout on an always-on host, `dev-container upgrade` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs `selfUpgrade.command` first, then builds the images and restarts the services, so the old containers keep running until the build succeeds. A failed run leaves the old containers running and is retried on the next run. `upgrade --force` redeploys anyway.
+For a stack kept in a git checkout on an always-on host, `dev-container upgrade` runs `git pull --ff-only`, updates submodules, and redeploys only when HEAD moved since the last good deploy. It runs `selfUpgrade.command` first, then pulls the images of services that only set `image` (a prebuilt tag is refreshed from its registry, so use a moving tag or change it in the config), builds the others and restarts the services, so the old containers keep running until the build succeeds. A failed run leaves the old containers running and is retried on the next run. `upgrade --force` redeploys anyway.
 
 ```ts
 export default defineConfig({

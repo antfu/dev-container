@@ -44,8 +44,8 @@ function exec(file: string, args: string[], cwd: string): Promise<void> {
 
 /**
  * Fast-forwards the checkout and its submodules, then redeploys only when HEAD moved since the last good
- * deploy. The `selfUpgrade.command` runs first, from the project root, and the images build before any
- * container stops. A failure throws before the state is written, so the next run retries and the previous
+ * deploy. The `selfUpgrade.command` runs first, from the project root, and the images are pulled and built
+ * before any container stops. A failure throws before the state is written, so the next run retries and the previous
  * containers keep running.
  */
 export async function selfUpgrade({ config, root, force = false, onWarnings, onPhase }: UpgradeOptions): Promise<'up-to-date' | 'deployed'> {
@@ -73,6 +73,8 @@ export async function selfUpgrade({ config, root, force = false, onWarnings, onP
     await exec('sh', ['-c', command], root)
   const { dir, warnings } = generate({ config, root })
   onWarnings?.(warnings)
+  // Services that only name an `image` are refreshed from their registry; buildable ones are built below.
+  await check(await compose(['pull', '--ignore-buildable'], { dir }), 'docker compose pull')
   await check(await compose(['build'], { dir }), 'docker compose build')
 
   onPhase?.('restarting')
