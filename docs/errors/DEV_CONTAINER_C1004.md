@@ -1,10 +1,10 @@
 # DEV_CONTAINER_C1004: A service's secret source has no secret to replace
 
-`services.<name>.secrets` gives a service its own source for a brokered secret, keyed by the variable of a builtin (`GITHUB_TOKEN`, `NPM_TOKEN`) or of a `secrets` entry. No active secret has the variable you named: it is misspelled, or its builtin is off because its token is not set.
+`services.<name>.secrets` gives a service its own source for a brokered secret, keyed by the variable of a builtin (`GITHUB_TOKEN`, `NPM_TOKEN`) or of a `secrets` entry. No active secret has the variable you named: it is misspelled, it names a `secrets` entry that is not configured, or its builtin is turned off with `false`.
 
 ## Fix
 
-Name the variable of a secret that is on, and keep that secret's own token set too, since other services still use it:
+Name the variable of a builtin that is not turned off, or of a `secrets` entry:
 
 ```ts
 export default defineConfig({

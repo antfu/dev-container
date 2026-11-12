@@ -240,6 +240,11 @@ export type UserConfig = z.input<typeof Config>
 export type ResolvedConfig = z.output<typeof Config>
 export type SecretConfig = z.input<typeof Secret>
 export type ResolvedSecret = z.output<typeof Secret>
+/** A secret that is on for this run. */
+export interface ActiveSecret extends ResolvedSecret {
+  /** It has no stack-wide value: only the services with their own source for it get it. */
+  serviceOnly?: true
+}
 export type ResolvedService = z.output<typeof Service>
 export type SecretSourceConfig = z.output<typeof SecretSource>
 export type JsonValue = z.output<ReturnType<typeof z.json>>
@@ -250,6 +255,11 @@ export interface ServiceSecret {
   key: string
   /** The stack's secret of that variable, read from the service's own source. */
   secret: ResolvedSecret
+}
+
+/** The secrets every caged service gets, as opposed to the ones only some services have a source for. */
+export function shared(secrets: ActiveSecret[]): ActiveSecret[] {
+  return secrets.filter(secret => !secret.serviceOnly)
 }
 
 /** The services' own sources for brokered secrets. `config.secrets` must hold the active secrets. */

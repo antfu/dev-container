@@ -1,5 +1,5 @@
 import type { BuiltinName } from './builtins'
-import type { ResolvedConfig, ResolvedSecret, SecretSourceConfig } from './config'
+import type { ActiveSecret, ResolvedConfig, ResolvedSecret, SecretSourceConfig } from './config'
 import type { SecretLookup } from './secrets'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -10,7 +10,7 @@ import { Diagnostic } from 'nostics'
 import { stringify } from 'yaml'
 import { BUILTIN_NAMES, BUILTINS } from './builtins'
 import { buildStack, envFilePath, serveFilePath } from './compose'
-import { serviceSecrets, tailscaleNodes } from './config'
+import { serviceSecrets, shared, tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 import { formatEnvFile, lookupEnv, readEnvFile, resolveSource } from './secrets'
 
@@ -67,7 +67,7 @@ export function generate({ config: userConfig, root, env = process.env }: Genera
     dir,
     assets: fileURLToPath(new URL('..', import.meta.url)),
     placeholders: Object.fromEntries([
-      ...config.secrets.map(s => s.env),
+      ...shared(config.secrets).map(s => s.env),
       ...serviceSecrets(config).map(s => s.key),
     ].map(key => [key, `dc-${key}-${randomBytes(8).toString('hex')}`])),
     dashboardToken: readDashboardToken(dir, config.dashboard.token, env),
@@ -104,10 +104,11 @@ export function readDashboardToken(dir: string, configured?: string, env: NodeJS
 
 /**
  * Enabled builtins, the configured secrets, then every other `envSecretFile` variable bound to no host;
- * no two may claim the same variable.
+ * no two may claim the same variable. A builtin with no token of its own is still on, for the services
+ * only, when a service has its own source for it.
  */
-function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: Diagnostic<unknown>[], fileVars: string[]): ResolvedSecret[] {
-  const claimed: { secret: ResolvedSecret, builtin?: BuiltinName }[] = []
+function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: Diagnostic<unknown>[], fileVars: string[]): ActiveSecret[] {
+  const claimed: { secret: ActiveSecret, builtin?: BuiltinName }[] = []
   for (const builtin of BUILTIN_NAMES) {
     const setting = config.builtins[builtin]
     const { secret, detect } = BUILTINS[builtin]
@@ -115,10 +116,17 @@ function activeSecrets(config: ResolvedConfig, lookup: SecretLookup, warnings: D
       continue
     const found = detect.find(name => lookupEnv(lookup, name))
     const from = setting?.from ?? (found && { env: found })
+    const rules = setting?.rules ?? secret.rules
     if (from) {
       claimed.push({
         builtin,
-        secret: { ...secret, from, rules: setting?.rules ?? secret.rules },
+        secret: { ...secret, from, rules },
+      })
+    }
+    else if (Object.values(config.services).some(service => secret.env in service.secrets)) {
+      claimed.push({
+        builtin,
+        secret: { ...secret, rules, serviceOnly: true },
       })
     }
     else {
@@ -187,7 +195,7 @@ function resolveEnvFiles(config: ResolvedConfig, lookup: SecretLookup): Record<s
 
   const files: Record<string, Record<string, string>> = {
     broker: Object.fromEntries([
-      ...config.secrets.map(secret => ({
+      ...shared(config.secrets).map(secret => ({
         key: secret.env,
         secret,
         label: `secret ${secret.env}`,

@@ -27,7 +27,7 @@ export const diagnostics = /* #__PURE__ */ defineDiagnostics({
     },
     DEV_CONTAINER_C1004: {
       why: (p: { service: string, env: string }) => `services.${p.service}.secrets.${p.env}: no active secret has the variable ${p.env}.`,
-      fix: 'Use the `env` of a builtin (`GITHUB_TOKEN`, `NPM_TOKEN`) or of a `secrets` entry, and make sure that secret is on.',
+      fix: 'Use the `env` of a builtin (`GITHUB_TOKEN`, `NPM_TOKEN`) that is not turned off, or of a `secrets` entry.',
     },
     DEV_CONTAINER_S2001: {
       why: (p: { label: string, env: string }) => `${p.label}: $${p.env} is not set in the environment or any envFile.`,
