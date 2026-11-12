@@ -4,7 +4,7 @@ This is a warning, not an error. The `github` or `npm` builtin is detected autom
 
 ## Fix
 
-Set the token in `.env.secret` to enable it. If you don't need it, silence the warning:
+Set the token in `.env.secret` to enable it. To give it to some services only, set their own source with `services.<name>.secrets` instead, as in `secrets: { NPM_TOKEN: { env: 'NPM_TOKEN_MAIN' } }`. If you don't need it, silence the warning:
 
 ```ts
 export default defineConfig({

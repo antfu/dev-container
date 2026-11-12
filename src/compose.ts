@@ -1,8 +1,8 @@
-import type { JsonValue, ResolvedConfig, ResolvedService, TailscaleNode } from './config'
+import type { ActiveSecret, JsonValue, ResolvedConfig, ResolvedService, TailscaleNode } from './config'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import { defu } from 'defu'
-import { serviceSecrets, tailscaleNodes } from './config'
+import { serviceSecrets, shared, tailscaleNodes } from './config'
 import { diagnostics } from './diagnostics'
 
 const TAILSCALE_IMAGE = 'tailscale/tailscale:v1.104.2'
@@ -170,7 +170,7 @@ export function buildStack(config: ResolvedConfig, ctx: StackContext): Stack {
     policy: config.egress.policy,
     allow,
     secrets: [
-      ...config.secrets.map(secret => ({ key: secret.env, secret })),
+      ...shared(config.secrets).map(secret => ({ key: secret.env, secret })),
       ...serviceSecrets(config),
     ].map(({ key, secret }) => ({
       name: key,
@@ -321,7 +321,10 @@ function cagedService(
   baseEnvironment: Record<string, string>,
   persistDirs: string[],
 ): ComposeService {
-  const environment = { ...baseEnvironment }
+  const environment = {
+    ...baseEnvironment,
+    ...gitCredentialHelpers(config.secrets.filter((secret: ActiveSecret) => !secret.serviceOnly || secret.env in service.secrets)),
+  }
   if (service.dashboard) {
     environment.DEV_CONTAINER_DASHBOARD_URL = `http://${DASHBOARD_HOST}:${config.dashboard.port}`
     environment.DEV_CONTAINER_DASHBOARD_TOKEN = ctx.dashboardToken
@@ -391,7 +394,7 @@ function cagedService(
     : generated
 }
 
-/** Proxy, CA trust, placeholders and git credential helpers; shared by every caged service. */
+/** Proxy, CA trust and placeholders; shared by every caged service. */
 function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<string, string> {
   const noProxy = [
     'localhost',
@@ -413,11 +416,17 @@ function cageEnvironment(config: ResolvedConfig, ctx: StackContext): Record<stri
     CURL_CA_BUNDLE: CA_CERT,
     GIT_SSL_CAINFO: CA_CERT,
   }
-  for (const secret of config.secrets) {
+  for (const secret of shared(config.secrets)) {
     for (const env of [secret.env, ...secret.aliases])
       environment[env] = placeholderOf(ctx, secret.env)
   }
-  const gitHelpers = config.secrets.flatMap(({ env, git }) => git
+  return environment
+}
+
+/** Git credential helpers that answer with the placeholder of each secret a service gets. */
+function gitCredentialHelpers(secrets: ActiveSecret[]): Record<string, string> {
+  const environment: Record<string, string> = {}
+  const gitHelpers = secrets.flatMap(({ env, git }) => git
     ? [
         { env, ...git },
       ]

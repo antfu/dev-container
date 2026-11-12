@@ -206,6 +206,8 @@ export default defineConfig({
 })
 ```
 
+A builtin whose token is not set is still on when a service has its own source for it. Only those services get its variables and placeholder; the others get none, and no warning is shown.
+
 Agent CLIs use their tokens directly, so letting them hold those tokens costs nothing extra. Keep their logins across recreation with `persist`, e.g. `persist: ['/home/node/.claude']`.
 
 ### Ports, relay and tailnet

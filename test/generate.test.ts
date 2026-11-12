@@ -349,6 +349,40 @@ describe('builtin secrets', () => {
     expect(rules[1].hosts).toEqual(rules[0].hosts)
   })
 
+  it('turns a builtin on for the services with their own source when it has no token of its own', () => {
+    const { services, brokerEnv, warnings } = run({
+      services: {
+        agent: { image: 'alpine' },
+        main: {
+          image: 'alpine',
+          secrets: {
+            GITHUB_TOKEN: { env: 'GITHUB_TOKEN_MAIN' },
+            NPM_TOKEN: { env: 'NPM_TOKEN_MAIN' },
+          },
+        },
+      },
+    }, { GITHUB_TOKEN_MAIN: 'ghp_main', NPM_TOKEN_MAIN: 'npm_main' })
+
+    expect(warnings).toEqual([])
+    expect(brokerEnv).toBe(`DEV_CONTAINER_SECRET_GITHUB_TOKEN__main='ghp_main'\nDEV_CONTAINER_SECRET_NPM_TOKEN__main='npm_main'\n`)
+    const { agent, main } = services
+    for (const env of [
+      'GITHUB_TOKEN',
+      'GH_TOKEN',
+      'NPM_TOKEN',
+      'GIT_CONFIG_COUNT',
+    ])
+      expect(agent.environment[env]).toBeUndefined()
+    expect(main.environment.NPM_TOKEN).toMatch(/^dc-NPM_TOKEN__main-/)
+    expect(main.environment.GH_TOKEN).toBe(main.environment.GITHUB_TOKEN)
+    expect(main.environment.GIT_CONFIG_COUNT).toBe('1')
+    const rules = JSON.parse(services.broker.environment.DEV_CONTAINER_RULES).secrets
+    expect(rules.map((s: { name: string, hosts: string[] }) => [s.name, s.hosts[0]])).toEqual([
+      ['GITHUB_TOKEN__main', 'api.github.com'],
+      ['NPM_TOKEN__main', 'registry.npmjs.org'],
+    ])
+  })
+
   it('rejects a service source for a variable no active secret has', () => {
     expect(() => run({
       services: {
