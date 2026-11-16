@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const cli = fileURLToPath(new URL('../dist/cli.mjs', import.meta.url))
+const fakeDocker = fileURLToPath(new URL('fixtures/fake-docker.mjs', import.meta.url))
 
 function run(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}) {
   try {
@@ -71,6 +73,23 @@ describe('cli', () => {
     expect(result.output).toContain('✔ created .env.secret\n')
     expect(result.output).toContain('Next: review dev-container.config.ts, then run `npx @antfu/dev-container up`.')
     expect(run(root, ['generate']).code).toBe(0)
+  })
+
+  it('stops the generated stack with down', () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'dev-container-cli-')))
+    writeFileSync(join(root, 'dev-container.config.mjs'), `export default { services: { agent: { image: 'alpine' } } }\n`)
+    const bin = join(root, 'bin')
+    mkdirSync(bin)
+    symlinkSync(fakeDocker, join(bin, 'docker'))
+    const log = join(root, 'docker.log')
+    const env = { PATH: `${bin}${delimiter}${process.env.PATH}`, FAKE_DOCKER_LOG: log }
+
+    expect(run(root, ['down'], env)).toEqual({ code: 0, output: 'Nothing to stop: no stack has been generated here.\n' })
+    expect(existsSync(log)).toBe(false)
+
+    expect(run(root, ['generate'], env).code).toBe(0)
+    expect(run(root, ['down', '-v'], env).code).toBe(0)
+    expect(readFileSync(log, 'utf8')).toBe(`compose -f ${join(root, '.dev-container/compose.yml')} down --remove-orphans -v\n`)
   })
 
   it('rejects unknown commands', () => {

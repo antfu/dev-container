@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import type { ResolvedConfig } from './index'
+import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
@@ -14,6 +15,7 @@ Commands:
   setup [--yes]            Create the config, .env, .env.secret and .gitignore entries
   generate                 Write .dev-container/ (compose file, broker rules, resolved env files)
   up [compose up flags]    Generate, then \`docker compose up -d --build --remove-orphans\`
+  down [compose down flags]  Stop and remove the stack's containers and networks
   compose <args...>        Run \`docker compose\` against the generated stack, e.g. \`compose logs -f agent\`
   serve [--host] [--port]  Serve the dashboard API and dashboard (token: $DEV_CONTAINER_DASHBOARD_TOKEN, dashboard.token or .dev-container/dashboard-token)
   upgrade [--force]        Pull the checkout, rebuild and restart when HEAD moved
@@ -52,6 +54,8 @@ async function main(argv: string[], json: boolean): Promise<number> {
         args: rest,
         onWarnings: warnings => report(warnings, 'warning', json),
       })
+    case 'down':
+      return down(rest, dir)
     case 'compose':
       return compose(rest, { dir })
     case 'serve': {
@@ -104,6 +108,15 @@ async function main(argv: string[], json: boolean): Promise<number> {
       process.stderr.write(`Unknown command: ${command}\n\n${HELP}`)
       return 1
   }
+}
+
+async function down(args: string[], dir: string): Promise<number> {
+  // Nothing was generated, so nothing can be running.
+  if (!existsSync(join(dir, 'compose.yml'))) {
+    process.stdout.write('Nothing to stop: no stack has been generated here.\n')
+    return 0
+  }
+  return compose(['down', '--remove-orphans', ...args], { dir })
 }
 
 // `--json` is ours anywhere except after `compose`, where it belongs to docker.
