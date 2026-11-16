@@ -259,13 +259,14 @@ The host directory starts empty and hides whatever the image had at that path. O
 dev-container setup [--yes]            scaffold the config, .env, .env.secret and .gitignore entries
 dev-container generate                 write .dev-container/
 dev-container up [compose up flags]    generate, then docker compose up -d --build --remove-orphans
+dev-container down [compose down flags]  docker compose down --remove-orphans
 dev-container compose <args...>        docker compose against the generated stack
 dev-container serve [--host] [--port]  serve the dashboard API
 dev-container upgrade [--force]        pull the checkout, rebuild and restart when HEAD moved
 dev-container daemon run|install|uninstall  keep the dashboard running, with an Upgrade button
 ```
 
-`compose` covers everything else: `down`, `logs -f agent`, `exec agent sh`, `restart broker`.
+`down` keeps the volumes and the persisted state in `.dev-container/state/`; pass `-v` to drop the named volumes too. `compose` covers everything else: `logs -f agent`, `exec agent sh`, `restart broker`.
 
 ### Diagnostics
 
